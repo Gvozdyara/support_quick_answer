@@ -2,87 +2,70 @@ from tkinter import *
 
 import json
 
-# create buttons corresponding to the existing sections in data.txt
-def add_existing_section_as_btn():
-
+# create buttons corresponding to the existing sections in data.json
+def add_existing_section_as_btn(current_window):
     with open('data.json', 'r') as file: # read support data
         help_data = json.load(file)
 
+        for key in help_data:
+            if
         k = 0 # var for row for buttons to enter to existing sections
         for i in help_data:
-            i_btn = Button(root, text=i, width=20, command=lambda i=i: open_section(i))
+            i_btn = Button(current_window, text=i, width=20, command=lambda i=i: open_section(i))
 
             i_btn.grid(column=2, row=k)
 
             k += 1
 
 
-## define a function to add a title
-
-def add_section(window, section_name):
+## Add section  as buttons to the current section to the current window
+def add_section(window_name, section_name, entered_section_name):
     with open('data.json', 'r') as file: # read support data
         help_data = json.load(file)
+    # add section(entry) value as a section to the data.json.load
+    current_section_dict = help_data[section_name]
+    current_section_dict = dict()
+    current_section_dict[entered_section_name] = "null" # main sections of the support data such as sensors' names
 
-    new_section = section.get()
-    help_data[new_section] = []
-    help_data[new_section].append(None) # main sections of the support data such as sensors' names
+    #add the new section to the file data.json
     with open('data.json', 'w') as outfile:
-        json.dump(help_data, outfile)
-    n = len(help_data)
-    new_name_btn = new_section + str(n)
-    new_name_btn= Button(root, text=new_section, width=20,
-                         command=lambda new_section=new_section:
-                         open_section(new_section))
-    new_name_btn.grid(column=2, row=n+1)
+        json.dump(current_section_dict, outfile, indent=4)
+
+    n = len(current_section_dict)
+    new_name_btn = entered_section_name + str(n)
+    new_name_btn = Button(window_name, text=entered_section_name, width=20,
+                         command=lambda entered_section_name=entered_section_name:
+                         open_section(entered_section_name))
+    new_name_btn.grid(column=2, row=n)
 
     return
 
 
-##open new window to go into a section
+##create a new window to go into a section
 def open_section(section_name):
-
 
     window_name = str(section_name) + "_window"
     window_name = Tk()
     window_name.title(section_name)
 
-    add_existing_section_as_btn()
+    #Place section-named buttons on the window
+    lambda window_name=window_name: add_existing_section_as_btn(window_name)
 
     section = Entry(window_name)
     section.grid(column=0, row=0)
 
     record_section_btn = Button(window_name, text="Add new section",
-                                command=lambda window_name=window_name: add_section(window_name, section.get()))
+                                command=lambda window_name=window_name: add_section(window_name, section_name, section.get()))
     record_section_btn.grid(column=1, row=0)
-
-    with open('data.json', 'r') as file: # read support data
-        help_data = json.load(file)
-    inner_sections =  help_data.get(section_name)
-    print(len(inner_sections))
-    k = 0  # var for row for buttons to enter to existing sections
-    for i in inner_sections:
-        i_btn = Button(window_name, text=i, width=20, command=lambda i=i: open_section(i))
-
-        i_btn.grid(column=2, row=k)
-
-        k += 1
-    window_name.mainloop()
-    return
-
-
 
 
 root = Tk()
 
-add_existing_section_as_btn()
+add_existing_section_as_btn(root)
 
 
 
-section = Entry(root)
-section.grid(column=0, row=0)
 
-record_section_btn = Button(root, text="Add new section", command=lambda: add_section(root, section.get()))
-record_section_btn.grid(column=1, row=0)
 
 
 
