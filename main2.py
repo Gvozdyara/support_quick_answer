@@ -4,7 +4,7 @@ import os
 import pickle
 
 def add_existing_sections_as_btns(current_window):
-
+    return
 
 def add_section(new_section, current_section, current_window):
 
