@@ -4,13 +4,13 @@ import os
 import pickle
 
 
-def open_section(section_name, new_window, directory):
+def open_section(section_name, new_window):
+    print("Open_section is done")
     global Help_base
+    global Directory
 
     new_window = Tk()
     new_window.title(section_name)
-
-
 
     new_section_entry = Entry(new_window)
     new_section_entry.pack()
@@ -27,42 +27,59 @@ def open_section(section_name, new_window, directory):
 
 
 def add_existing_sections_as_btns(current_section, current_window):
+    print("add_existing_sections_as_btns is done")
     global Help_base
-
-
-    inner_sections = list(Help_base.get(current_section, ''))
+    # global Directory
+    #
+    # Directory = Directory + '/' + current_section
+    # sections_tree = []
+    # sections_tree = Directory.split('/')
+    # sections_tree.pop(0)
+    inner_sections = []
+    if Help_base.get(current_section, '') is '':
+        pass
+    else:
+        inner_sections.append(Help_base.get(current_section, ''))
+    print(inner_sections, " inner sections")
 
     # create btns corresponding to existing sections
     for key in inner_sections:
-        btn_name = str(key) + "_btn"
         btn_name = Button(current_window, text=key, command=lambda key=key : open_section(key, key))
         btn_name.pack()
 
-    print(Help_base)
-    return
 
 def add_section(new_section, current_section, current_window):
-    print(new_section)
+    print("add_section is done")
     global Directory
     global Help_base
 
     Directory = Directory + '/' + current_section
     sections_tree = []
-    sections_tree = "/".split(Directory)
-    help_base_temp = Help_base
-    for item in sections_tree:
-        ''.join(item)
-        inner_item = help_base_temp.get(item, '***')
-        if inner_item != '***':
-            help_base_temp = dict(help_base_temp.get(item))
+    sections_tree = Directory.split('/')
+    sections_tree.pop(0)
+    help_base_temp = dict()
+
+    # duplicate Hlp_base to a temporary dictionary
+    for key in Help_base:
+        help_base_temp[key] = Help_base.get(key)
+    print(help_base_temp, "<=help_base_temp before")
+
+    # go inside help_base_temp
+    for key in sections_tree:
+        value = help_base_temp.get(key, '***')
+        if value != '***':
+            value = help_base_temp.get(value, '***')   # надо переназначать временный словарь на внутренний
+            if current_section is in value:
+
         else:
             help_base_temp[current_section] = new_section
+            print(help_base_temp, "<=help_base_temp after")
 
-    inner_sections = list(Help_base.get(current_section, "")) #need to fix this to open inner key-value pairs
-    inner_sections.append(new_section)
-    Help_base[current_section] = inner_sections
+    for key in help_base_temp:
+        Help_base[key] = help_base_temp.get(key)
+
     current_section_btn = Button(current_window, text=new_section, textvariable=current_section,
-                                 command=lambda new_section=new_section : open_section(new_section, new_section, Directory))
+                                 command=lambda : open_section(new_section, new_section,))
     current_section_btn.pack()
     with open("data.txt", "wb", ) as file:
         pickle.dump(Help_base, file)
