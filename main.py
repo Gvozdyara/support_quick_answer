@@ -16,7 +16,7 @@ def create_data_base(file_name, table_name):
     create_table(cur, conn, table_name)
     return table_name
 
-
+# создание таблицы после подключения к базе данных
 def create_table (cur, conn, table_name):
     q = '''CREATE TABLE IF NOT EXISTS "{}" (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,8 +24,10 @@ def create_table (cur, conn, table_name):
                 section_inner_lvl TEXT)'''
     cur.execute(q.format(table_name))
     conn.commit()
-    return table_name
 
+
+
+# кнопки с именем раздела
 class section_btns:
     def __init__(self, frame, section_id, text, click_cmnd, current_table):
         name = "btn_" + str(section_id)
@@ -36,15 +38,19 @@ class section_btns:
 
     def create_inner_table_add_to_the_row(self, section_id, current_table):
         # make the table name where to add new sections
+        print(section_id)
         table_name = "table_" + str(section_id)
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
-        table = create_table(cur, conn, table_name)
+        create_table(cur, conn, table_name)
+        print(table_name)
         #     надо добавить свеже созданую таблицу в таблицу выше уровнем в строку с section_id_var
         q = """UPDATE '{}' 
                 SET section_inner_lvl = '{}'
                 WHERE rowid = '{}' """
-        cur.execute(q.format(current_table, table, section_id))
+        cur.execute(q.format(current_table, table_name, section_id))
+        conn.commit()
+
         print("Inner table is nested")
 
 
@@ -57,8 +63,6 @@ class new_section_entry:
         get_entry_btn.pack(side=RIGHT, expand=1)
 
 
-
-
 def add_section(entry, current_table):
     global root, section_frame
     section_title = entry.get()
@@ -66,23 +70,25 @@ def add_section(entry, current_table):
     #     for now we have unique section ID of the new section from the previous func
     new_section_btn = section_btns(section_frame, section_id, section_title, open_section, current_table)
     new_section_btn.create_inner_table_add_to_the_row(id, current_table)
+    print("connected")
 
 
 def add_section_to_db(section_name_var, current_table):
-
-    conn = sqlite3.connect("main.db")
+    conn = sqlite3.connect(Data_base_file)
     cur = conn.cursor()
     string = cur.execute('SELECT rowid, section_name FROM "{}"'.format(current_table))
+    conn.commit()
     print(string)
-
     q = 'INSERT INTO "{}" (section_name) VALUES (?)'
-
     cur.execute(q.format(current_table), (section_name_var,))
     conn.commit()
     # возвращаем rowid добавленного раздела
-    q = """SELECT rowid FROM '{}'"""
-    section_id = cur.execute(q.format(current_table))
-    return section_id
+    q = """SELECT id FROM '{}' WHERE rowid=last_insert_rowid()"""
+    cur.execute(q.format(current_table))
+    section_id = cur.fetchone()
+    conn.commit()
+    print(section_id[0], " + test")
+    return section_id[0]
 
 def open_section(section_id_var, current_table):
     global section_frame, entry_frame
