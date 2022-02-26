@@ -13,6 +13,9 @@ class section_btns:
         self.id = section_id
         self.current_table = current_table
         self.text = text
+        self.name.bind("<Enter>", self.on_enter)
+        self.name.bind("<Leave>", self.on_leave)
+
 
     def create_inner_table_add_to_the_row(self, section_id, current_table):
         # make the table name where to add new sections
@@ -31,6 +34,30 @@ class section_btns:
 
         print("Inner table is nested")
 
+    # выводим содержимое описания к разделу (3 столбец)
+    def on_enter(self, e):
+        global section_inner_lvl_frame
+
+        for widget in section_inner_lvl_frame.winfo_children():
+            widget.destroy()
+        section_inner_lvl_frame.update()
+
+        conn = sqlite3.connect(Data_base_file)
+        cur = conn.cursor()
+
+        q = """
+                SELECT section_inner_lvl from '{}' WHERE id = ('{}') """
+        cur.execute(q.format(self.text, self.id))
+        inner_table = cur.fetchall()
+        print(inner_table, " inner table")
+        q = "SELECT * FROM '{}'"
+        to_layout_list = cur.execute(q.format(inner_table[1]))
+        cur.commit()
+        section_inner_lvl_label(self.text, section_inner_lvl_frame, to_layout_list)
+        return
+
+    def on_leave(self, e):
+        return
 
 class new_section_entry:
     def __init__(self, name, frame, current_table, current_id):
@@ -40,6 +67,12 @@ class new_section_entry:
 
         self.name.pack(side=LEFT, expand=0)
         get_entry_btn.pack(side=RIGHT, expand=1)
+
+
+class section_inner_lvl_label:
+    def __init__(self, name, frame, section_inner_lvl, current_id):
+        self.name = Label(frame, width=400, height=400, background="RED")
+        self.name.pack()
 
 
 # не работает не нужна
@@ -127,11 +160,12 @@ def open_section(current_id, current_table, inner_table):
 root = Tk()
 root.title("Quick respond")
 
-
 Data_base_file = "sections.db"
 table_name = create_data_base(Data_base_file, "main")
 section_frame = Frame(root, background="RED")
 section_frame.pack(side=BOTTOM, fill=X)
+section_inner_lvl_frame = Frame(root)
+section_inner_lvl_frame.pack(side=LEFT)
 
 entry_frame = Frame(root)
 entry_frame.pack()
