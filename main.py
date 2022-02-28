@@ -79,23 +79,23 @@ class section_btns:
 class new_section_entry:
     def __init__(self, name, frame, current_table, current_id):
         self.name = Entry(frame)
-        get_entry_btn = Button(frame, text="Add section", command=lambda: add_section(self.name, current_table, current_id))
+        get_entry_btn = Button(frame,  text="Add section", command=lambda: add_section(self.name, current_table, current_id))
         self.current_id = current_id
 
-        self.name.pack(side=LEFT, expand=0)
-        get_entry_btn.pack(side=RIGHT, expand=1)
+        self.name.pack(expand=0)
+        get_entry_btn.pack(expand=1)
 
 
 # функция добавления описания к текущему разделу при помощи Text widget
 class description_text:
     def __init__(self, name, frame, parrent_table, current_table):
-        self.name = Text(frame, wrap="word", width=30)
+        self.name = Text(frame, height=10, wrap="word", width=30)
         get_text_btn = Button(frame, text="Add description to the section",
                               command=lambda: add_description(self.name, parrent_table,
                                                               current_table))
 
-        self.name.pack(side=LEFT, expand=0)
-        get_text_btn.pack(side=RIGHT, expand=1)
+        self.name.pack(expand=0)
+        get_text_btn.pack(expand=1)
 
 
 # добавление описания в таблицу
@@ -116,7 +116,7 @@ class section_inner_lvl_label:
         self.name = Label(frame, wraplength=100, justify=CENTER, text="\n".join(to_layout), background="RED")
         self.name.pack()
 
-        text_widget = Text(frame, wrap="word", width=30)
+        text_widget = Text(frame, height=10, wrap="word", width=30)
         text_widget.pack()
         print(description)
         if description[0] != None:
