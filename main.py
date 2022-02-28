@@ -46,18 +46,29 @@ class section_btns:
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
 
-        # q = """
-        #         SELECT section_inner_lvl from '{}' WHERE id = ('{}') """
-        # cur.execute(q.format(self.text, self.id))
-        # description = cur.fetchall()
-        # print(description, " description")
+        q = """SELECT section_inner_lvl from '{}' 
+               WHERE section_name = ('{}') """
+        cur.execute(q.format(self.current_table, self.text))
+        print(self.current_table, " текущая таблица")
+        print(self.text, " таблица, к которой выкладывается описание")
+        description_raw = cur.fetchall()
+        description = list()
+        for i in description_raw:
+            description.append(i)
+
+        print(description, " description")
+
         q = """SELECT section_name from '{}'"""
         try:
             cur.execute(q.format(self.text))
         except sqlite3.OperationalError:
             print("there is only row, but not the section")
-        to_layout_sections = ["{}\n".format(name[0]) for name in cur.fetchall()]
-        to_layout_label = section_inner_lvl_label(self.text, section_inner_lvl_frame, to_layout_sections, None)
+        to_layout_sections_raw = [name[0] for name in cur.fetchall()]
+        to_layout_sections = list()
+        for i in to_layout_sections_raw:
+            to_layout_sections.append(i)
+
+        section_inner_lvl_label(self.text, section_inner_lvl_frame, to_layout_sections, description)
         return
 
     def on_leave(self, e):
@@ -75,11 +86,41 @@ class new_section_entry:
         get_entry_btn.pack(side=RIGHT, expand=1)
 
 
+# функция добавления описания к текущему разделу при помощи Text widget
+class description_text:
+    def __init__(self, name, frame, parrent_table, current_table):
+        self.name = Text(frame, wrap="word", width=30)
+        get_text_btn = Button(frame, text="Add description to the section",
+                              command=lambda: add_description(self.name, parrent_table,
+                                                              current_table))
+
+        self.name.pack(side=LEFT, expand=0)
+        get_text_btn.pack(side=RIGHT, expand=1)
+
+
+# добавление описания в таблицу
+def add_description(text_widget, parrent_table, current_table):
+    description = text_widget.get(1.0, "end")
+    conn = sqlite3.connect(Data_base_file)
+    cur = conn.cursor()
+    q = '''UPDATE "{}" SET section_inner_lvl = "{}" 
+                        WHERE section_name = "{}"'''
+    cur.execute(q.format(parrent_table, description, current_table))
+    conn.commit()
+    return
+
+
 # поле для вывода содержимого таблицы при наведении курсора на кнопку
 class section_inner_lvl_label:
-    def __init__(self, name, frame, to_layout, current_id):
-        self.name = Label(frame, wraplength=100, justify=CENTER, text=to_layout, background="RED")
+    def __init__(self, name, frame, to_layout, description):
+        self.name = Label(frame, wraplength=100, justify=CENTER, text="\n".join(to_layout), background="RED")
         self.name.pack()
+
+        text_widget = Text(frame, wrap="word", width=30)
+        text_widget.pack()
+        print(description)
+        if description[0] != None:
+            text_widget.insert(1.0, "\n".join(description[0]))
 
 
 # функция вывода таблицы в консоль
@@ -164,6 +205,9 @@ def open_section(current_id, current_table, inner_table):
     # отправляем команду на создание нового фрейма, нового Энтри  для добавления разделов внутрь открываемого
     new_entry_name = "entry_" + str(current_id)
     new_entry = new_section_entry(new_entry_name, entry_frame, inner_table, current_id)
+    description_text_name = "text_" + str(current_id)
+    description_text(description_text_name, entry_frame, current_table,
+                     inner_table)
     try:
         if path[-1][1] != current_table:
             path.append((current_id, current_table, inner_table))
