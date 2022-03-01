@@ -1,6 +1,7 @@
 from tkinter import *
 import os
 import sqlite3
+import time
 
 
 # класс используемый при создании кнопки с именем раздела
@@ -8,7 +9,7 @@ class section_btns:
     def __init__(self, frame, section_id, text, click_cmnd, current_table, path):
         name = "btn_" + str(section_id)
         self.name = Button(frame, text=text, command=lambda: click_cmnd(section_id, current_table, text))
-        self.name.pack(fill=X)
+        self.name.pack(side=TOP, fill=X)
         self.id = section_id
         self.current_table = current_table
         self.text = text
@@ -43,6 +44,7 @@ class section_btns:
             print("No section inner level frame to destroy")
             pass
 
+        time.sleep(0.2)
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
 
@@ -79,23 +81,23 @@ class section_btns:
 class new_section_entry:
     def __init__(self, name, frame, current_table, current_id):
         self.name = Entry(frame)
-        get_entry_btn = Button(frame,  text="Add section", command=lambda: add_section(self.name, current_table, current_id))
+        get_entry_btn = Button(frame,  text="Добавить раздел", command=lambda: add_section(self.name, current_table, current_id))
         self.current_id = current_id
 
-        self.name.pack(expand=0)
-        get_entry_btn.pack(expand=1)
+        self.name.pack(fill=X)
+        get_entry_btn.pack(fill=X)
 
 
 # функция добавления описания к текущему разделу при помощи Text widget
 class description_text:
     def __init__(self, name, frame, parrent_table, current_table):
         self.name = Text(frame, height=10, wrap="word", width=30)
-        get_text_btn = Button(frame, text="Add description to the section",
+        get_text_btn = Button(frame, text="Добавить описание к текущему разделу",
                               command=lambda: add_description(self.name, parrent_table,
                                                               current_table))
 
-        self.name.pack(expand=0)
-        get_text_btn.pack(expand=1)
+        self.name.pack(fill=X)
+        get_text_btn.pack(fill=X)
 
 
 # добавление описания в таблицу
@@ -105,7 +107,14 @@ def add_description(text_widget, parrent_table, current_table):
     cur = conn.cursor()
     q = '''UPDATE "{}" SET section_inner_lvl = "{}" 
                         WHERE section_name = "{}"'''
-    cur.execute(q.format(parrent_table, description, current_table))
+    try:
+        cur.execute(q.format(parrent_table, description, current_table))
+    except sqlite3.OperationalError:
+        pop = Tk()
+        info_message = Label(pop, text="Нельзя добавить описание к главному разделу")
+        OK = Button(pop, text="OK", command=lambda: pop.destroy())
+        info_message.pack()
+        OK.pack()
     conn.commit()
     return
 
@@ -113,14 +122,19 @@ def add_description(text_widget, parrent_table, current_table):
 # поле для вывода содержимого таблицы при наведении курсора на кнопку
 class section_inner_lvl_label:
     def __init__(self, name, frame, to_layout, description):
-        self.name = Label(frame, wraplength=100, justify=CENTER, text="\n".join(to_layout), background="RED")
-        self.name.pack()
+        to_layout.insert(0, "Содержание")
+        if len(to_layout) < 2:
+            to_layout.insert(1, "Здесь пока пусто")
+        self.name = Label(frame, wraplength=100, justify=CENTER, text="\n\n".join(to_layout), font="bold")
+        self.name.pack(fill=X, side=TOP)
 
-        text_widget = Text(frame, height=10, wrap="word", width=30)
-        text_widget.pack()
+        text_widget = Text(frame, height=10, wrap="word", width=30, font="bold")
+        text_widget.pack(fill=X, side=TOP)
         print(description)
-        if description[0] != None:
+        try:
             text_widget.insert(1.0, "\n".join(description[0]))
+        except TypeError:
+            text_widget.insert(1.0, "Нет описания")
 
 
 # функция вывода таблицы в консоль
@@ -219,8 +233,8 @@ def open_section(current_id, current_table, inner_table):
     delete_btn_frame.update()
     delete_section_btn = Button(delete_btn_frame, text="Удалить текущий раздел",
                                 command=lambda: ask_delete_section(path[-1][1], path[-1][2], current_id))
-    if len(path) > 0:
-        delete_section_btn.pack(side=BOTTOM)
+    if len(path) > 1:
+        delete_section_btn.pack(side=BOTTOM, fill=X)
 
     print(path, " Путь где мы сейчас")
 
@@ -302,19 +316,21 @@ path = []
 
 Data_base_file = "sections.db"
 table_name = create_data_base(Data_base_file, "main")
-section_frame = Frame(root, background="RED")
-section_frame.pack(side=LEFT, fill=X)
+section_entry_frame = Frame(root)
+section_entry_frame.pack(side=TOP)
+section_frame = Frame(section_entry_frame)
+section_frame.pack(side=LEFT, fill=Y)
 section_inner_lvl_frame = Frame(root)
-section_inner_lvl_frame.pack(side=RIGHT)
+section_inner_lvl_frame.pack(side=TOP)
 
-entry_frame = Frame(root)
-entry_frame.pack()
+entry_frame = Frame(section_entry_frame)
+entry_frame.pack(side=TOP)
 section_entry = new_section_entry("main_section_entry", entry_frame, table_name, None)
-delete_btn_frame = Frame(root)
+delete_btn_frame = Frame(root, width=30)
 delete_btn_frame.pack(side=BOTTOM)
 
 back_btn = Button(root, text="Назад", command=lambda: go_to_previous_section(path))
-back_btn.pack(side=BOTTOM)
+back_btn.pack(side=BOTTOM, fill=X)
 open_section(None, None, "main")
 
 
