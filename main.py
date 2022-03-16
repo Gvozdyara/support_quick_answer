@@ -102,7 +102,7 @@ class description_text:
 
 # добавление описания в таблицу
 def add_description(text_widget, parrent_table, current_table):
-    description = text_widget.get(1.0, "end")
+    description = text_widget.get(1.0, "end").strip()
     conn = sqlite3.connect(Data_base_file)
     cur = conn.cursor()
     q = '''UPDATE "{}" SET section_inner_lvl = "{}" 
@@ -125,11 +125,11 @@ class section_inner_lvl_label:
         to_layout.insert(0, "Содержание")
         if len(to_layout) < 2:
             to_layout.insert(1, "Здесь пока пусто")
-        self.name = Label(frame, wraplength=100, justify=CENTER, text="\n\n".join(to_layout), font="bold")
-        self.name.pack(fill=X, side=TOP)
+        self.name = Label(frame, width=25, wraplength=100, justify=CENTER, text="\n\n".join(to_layout))
+        self.name.pack(fill=X, side=RIGHT)
 
-        text_widget = Text(frame, height=10, wrap="word", width=30, font="bold")
-        text_widget.pack(fill=X, side=TOP)
+        text_widget = Text(frame, height=25, wrap="word", width=40)
+        text_widget.pack(fill=X, side=LEFT)
         print(description)
         try:
             text_widget.insert(1.0, "\n".join(description[0]))
@@ -179,7 +179,7 @@ def create_table (cur, conn, table_name):
 # функция добавления нового раздела к базе данных, а также вывода ее в интрефейс в виде кнопки
 def add_section(entry, current_table, current_id):
     global root, section_frame, path
-    section_title = entry.get()
+    section_title = entry.get().strip()
     section_id = add_section_to_db(section_title, current_table, current_id)
     #     for now we have unique section ID of the new section from the previous func
     new_section_btn = section_btns(section_frame, section_id, section_title, open_section, current_table, path)
