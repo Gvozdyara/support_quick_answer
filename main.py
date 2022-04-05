@@ -9,6 +9,29 @@ move_path = []
 proceed = False
 
 
+#  search interface
+#  class of the search interface
+# class SearchNote():
+#     def __init__(self, parent_frame, string_to_search):
+#         ttk.Button(parent_frame, text="Back", command=self.go_back)
+#         for widget in parent_frame.winfo_children():
+#             widget.destroy()
+#         self.string_to_search = string_to_search
+#
+#
+#     def go_back(self):
+#         layout_frames()
+#         open_section(None, "main")
+#
+#     def search_string(self):
+#         conn = sqlite3.connect(Data_base_file)
+#         cur = conn.cursor()
+#         cur.execute("SELECT existing_sections from 'tbls_list'")
+#         tables_list_of_tuples = cur.fetchall()
+#         for item in tables_list_of_tuples:
+#             cur.execute(f"SELECT")
+
+
 #  replaces the notebook interface with the moving interface
 class MoveSectionInterface():
     global move_path
@@ -16,7 +39,6 @@ class MoveSectionInterface():
     def __init__(self, section_to_move, elder_parent_tables, parent_frame: Frame):
         for widget in parent_frame.winfo_children():
             widget.destroy()
-        print(parent_frame, " main frame object")
 
         canvas = Canvas(parent_frame)
         canvas.pack(side=LEFT, fill=BOTH, expand=1)
@@ -38,7 +60,7 @@ class MoveSectionInterface():
 # кнопки, которые отображаются в move_section_interface
 class SectionToSelect(ttk.Button):
     def __init__(self, window, section_name, section_to_move, elder_parent_tables):
-        super().__init__(window, text=section_name,
+        super().__init__(window, text=section_name, width=40,
                          command=lambda: layout_btns(window,
                                                      section_name,
                                                      section_to_move,
@@ -48,7 +70,7 @@ class SectionToSelect(ttk.Button):
 #  the back button of the move interface
 class BackBtn(ttk.Button):
     def __init__(self, window, section_to_move, elder_parent_tables):
-        super().__init__(window, text="Назад", command=self.go_back)
+        super().__init__(window, text="Назад", command=self.go_back, width=40)
         self.pack()
         self.window = window
         self.section_to_move = section_to_move
@@ -87,7 +109,7 @@ def layout_btn_secnd_phase(frame, current_table, section_to_move,
     for item in to_layout_list:
         SectionToSelect(frame, item[0], section_to_move, elder_parent_tables)
 
-    ttk.Button(frame, text="Выбрать текущий раздел",
+    ttk.Button(frame, text="Выбрать текущий раздел", width=40,
                command=lambda: select_to_move(current_table, frame, section_to_move,
                                               elder_parent_tables)).pack()
     BackBtn(frame, section_to_move, elder_parent_tables)
@@ -300,9 +322,13 @@ def add_description(text_widget, parent_table, current_table):
                         WHERE section_name = "{}"'''
     try:
         cur.execute(q.format(parent_table, description, current_table))
+        conn.commit()
+        cur.execute(f"""UPDATE 'tbls_list' set last_edit_time = '{get_time()}' 
+                                        where existing_sections='{current_table}'""")
+        conn.commit()
     except sqlite3.OperationalError:
         messagebox.showinfo("Error", "Unable to add note to the main screen")
-    conn.commit()
+    conn.close()
 
 
 # функция выкладывания кнопок текущего раздела
@@ -317,7 +343,25 @@ def layout_section_btns(current_table):
         from '{}' """
     cur.execute(q.format(current_table))
     to_layout_list = cur.fetchall()
-    conn.close()
+
+    #  experimental feature to sort by last edit
+    # sections_list = []
+    # for i in to_layout_list:
+    #     sections_list.append(i[0])
+    # cur.execute('''SELECT existing_sections,
+    #                         last_edit_time
+    #             from "tbls_list" where existing_sections="{}"
+    #             "{}"'''.format(sections_list[0], "AND where existing_sections=".join(sections_list[1:])))
+    # section_edit_time = cur.fetchall()
+    # conn.close()
+    # print(section_edit_time, "section edit_time list of tuples")
+    # modified_list = []
+    # for tup in section_edit_time:
+    #     modified_list.append(time_to_sec(tup[1]))
+    # sorted(modified_list, key=lambda seconds: seconds[1])
+
+
+
 
     for item in to_layout_list:
         SectionBtn(section_frame,
@@ -547,9 +591,9 @@ def add_table_to_tbls_list(file_name, name):
     cur = conn.cursor()
     q = f'''INSERT into "tbls_list" (existing_sections, 
                                     created_time,
-                                    last_edit_time) values ("{name}", 
-                                                        {get_time()},
-                                                        {get_time()})
+                                    last_edit_time) values("{name}", 
+                                                        "{get_time()}",
+                                                        "{get_time()}")
                                                                     '''
     print(name)
     cur.execute(q)
@@ -621,6 +665,20 @@ def open_section(current_table, inner_table):
 #  this function returns string YYYY-MM-DD HH:MM:SS
 def get_time():
     return str(datetime.now())[:-7]
+
+
+def time_to_sec(str_time):
+    date = str_time.split(" ")[0]
+    date_split = date.split("-")
+    print(date)
+    days = int(date_split[0])*365*0.25 + int(date_split[1])*30.45 + int(date_split[2])
+
+    time = str_time.split(" ")[1]
+    time_split = time.split(":")
+    seconds = int(time_split[0])*3600+int(time_split[1])*60+int(time_split[2])
+    total_seconds = days*86400 + seconds
+    return total_seconds
+
 
 
 if __name__ == "__main__":
