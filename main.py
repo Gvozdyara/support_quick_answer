@@ -129,8 +129,8 @@ def select_to_move(parent_table, frame, section_to_move,
     cur.execute(q, (section_to_move,))
     to_insert_tuple = cur.fetchall()
 
-    q = "INSERT INTO '{}' values(?,?,?)".format(parent_table)
-    cur.execute(q, (to_insert_tuple[0][0], to_insert_tuple[0][1], to_insert_tuple[0][2]))
+    q = "INSERT INTO '{}' values(?,?)".format(parent_table)
+    cur.execute(q, (to_insert_tuple[0][0], to_insert_tuple[0][1]))
     conn.commit()
 
     q = "DELETE from '{}' where section_name=(?)".format(elder_parent_tables[-1])
@@ -147,8 +147,8 @@ class App(Tk):
         global main_frame, Data_base_file, path
         super().__init__()
         self.title("AI support notebook")
+        self.configure(background="#F4F6F7")
 
-        self.configure(bg="WHITE")
 
         path = []
         # sb = ttk.Style()
@@ -157,14 +157,16 @@ class App(Tk):
         # sl = ttk.Style()
         # sl.configure("TLabel", background="RED")
 
-        # sf = ttk.Style()
-        # sf.configure("TFrame", background="BLACK")
+        sf = ttk.Style()
+        sf.configure("Mainframe.TFrame", background="#FEF5E7")
+        sf.configure("Label.TLabel", background="#FEF5E7")
+
 
         Data_base_file = "sections.db"
         create_data_base(Data_base_file, "main")
         create_tbls_list_table(Data_base_file, "tbls_list")
 
-        main_frame = ttk.Frame(self)
+        main_frame = ttk.Frame(self, style="Mainframe.TFrame")
         main_frame.pack()
 
         layout_frames()
@@ -218,9 +220,9 @@ class SectionBtn(ttk.Button):
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
 
-        q = """SELECT description from '{}' 
-               WHERE section_name = '{}' """
-        cur.execute(q.format(self.current_table, self.button_section_name))
+        q = """SELECT description from 'tbls_list' 
+               WHERE existing_sections = '{}' """
+        cur.execute(q.format(self.button_section_name))
         try:
             description = "".join(cur.fetchall()[0])
         except TypeError:
@@ -275,14 +277,14 @@ class DescriptionText(Text):
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
         try:
-            cur.execute(f"""SELECT description from '{parrent_table}' 
-                                                where section_name='{current_table}'""")
+            cur.execute(f"""SELECT description from 'tbls_list' 
+                             WHERE existing_sections ='{current_table}'""")
             description = cur.fetchall()
             conn.close()
             description = description[0][0]
             if description == None:
                 description = "Нет описания"
-        except sqlite3.OperationalError:
+        except IndexError:
             description = "Нет описания"
         conn.close()
         self.insert(END, description)
@@ -303,7 +305,7 @@ class SectionInnerLvlLabel(ttk.Label):
         super().__init__(frame, wraplength=220, font="Font 9",
                          justify=LEFT, width=40,
                          text=tbl_of_cntns + "\n" * 2 + str(description[:500]) + "...",
-                         padding=(5, 10, 2, 0))
+                         padding=(5, 10, 2, 0), style="Label.TLabel")
         self.grid(row=0, column=0, sticky=EW)
 
         # text_widget = Text(frame, height=10, wrap="word", width=40, font="Font 9")
@@ -318,10 +320,10 @@ def add_description(text_widget, parent_table, current_table):
     description = text_widget.get(1.0, "end").strip()
     conn = sqlite3.connect(Data_base_file)
     cur = conn.cursor()
-    q = '''UPDATE "{}" SET description = "{}" 
-                        WHERE section_name = "{}"'''
+    q = '''UPDATE "tbls_list" SET description = "{}" 
+            WHERE existing_sections = "{}"'''
     try:
-        cur.execute(q.format(parent_table, description, current_table))
+        cur.execute(q.format(description, current_table))
         conn.commit()
         cur.execute(f"""UPDATE 'tbls_list' set last_edit_time = '{get_time()}' 
                                         where existing_sections='{current_table}'""")
@@ -393,8 +395,7 @@ def create_data_base(file_name, table_name):
 def create_table(cur, conn, table_name):
     q = '''CREATE TABLE IF NOT EXISTS "{}" (
                 section_name TEXT UNIQUE,
-                inner_table_sqlobject TEXT UNIQUE, 
-                description TEXT
+                inner_table_sqlobject TEXT UNIQUE
                 )'''
     cur.execute(q.format(table_name))
     conn.commit()
@@ -404,30 +405,34 @@ def create_table(cur, conn, table_name):
 def add_section(entry, current_table):
     global root, section_frame, path
     section_title = entry.get().strip().upper()
-    try:
-        conn = sqlite3.connect(Data_base_file)
-        cur = conn.cursor()
-        cur.execute("SELECT existing_sections from 'tbls_list'")
-        existing_sections_raw_list = cur.fetchall()
-        conn.close()
-        existing_sections = []
-        for i in existing_sections_raw_list:
-            existing_sections.append(i[0])
-    except sqlite3.OperationalError:
-        existing_sections = []
-        messagebox.showinfo("Ошибка", "Ошибка проверки наличия раздела в существующей таблице")
-    except IndexError:
-        existing_sections = []
-        print(IndexError)
+    if section_title != "":
+        entry.delete(0, 'end')
+        try:
+            conn = sqlite3.connect(Data_base_file)
+            cur = conn.cursor()
+            cur.execute("SELECT existing_sections from 'tbls_list'")
+            existing_sections_raw_list = cur.fetchall()
+            conn.close()
+            existing_sections = []
+            for i in existing_sections_raw_list:
+                existing_sections.append(i[0])
+        except sqlite3.OperationalError:
+            existing_sections = []
+            messagebox.showinfo("Ошибка", "Ошибка проверки наличия раздела в существующей таблице")
+        except IndexError:
+            existing_sections = []
+            print(IndexError)
 
 
-    if not section_title in existing_sections:
-        add_section_to_db(section_title, current_table)
-        add_table_to_tbls_list(Data_base_file, section_title)
-        new_section_btn = SectionBtn(section_frame, section_title, open_section, current_table)
-        new_section_btn.create_inner_table_add_to_the_row(current_table)
+        if not section_title in existing_sections:
+            add_section_to_db(section_title, current_table)
+            add_table_to_tbls_list(Data_base_file, section_title)
+            new_section_btn = SectionBtn(section_frame, section_title, open_section, current_table)
+            new_section_btn.create_inner_table_add_to_the_row(current_table)
+        else:
+            messagebox.showinfo("Ошибка", "Такая запись уже существует")
     else:
-        messagebox.showinfo("Ошибка", "Такая запись уже существует")
+        pass
 
 
 # функция добавления нового раздела к базе данных
@@ -452,16 +457,16 @@ def layout_frames():
     for widget in main_frame.winfo_children():
         widget.destroy()
 
-    buttons_frame = ttk.Frame(main_frame)
+    buttons_frame = ttk.Frame(main_frame, style="Mainframe.TFrame")
     buttons_frame.grid(row=0, column=0, columnspan=3, sticky=W)
 
-    sections_raw_frame = Frame(main_frame)
+    sections_raw_frame = ttk.Frame(main_frame, style="Mainframe.TFrame")
     sections_raw_frame.grid(row=1, column=0, sticky=NS)
-    sections_canvas = Canvas(sections_raw_frame)
+    sections_canvas = Canvas(sections_raw_frame, background="#FEF5E7")
     sections_scr_bar = ttk.Scrollbar(sections_raw_frame,
                                      orient="vertical",
                                      command=sections_canvas.yview)
-    section_frame = ttk.Frame(sections_raw_frame)
+    section_frame = ttk.Frame(sections_raw_frame, style="Mainframe.TFrame")
     section_frame.bind("<Configure>",
                        lambda e: sections_canvas.configure(
                            scrollregion=sections_canvas.bbox("all")
@@ -472,10 +477,10 @@ def layout_frames():
     sections_canvas.pack(side=LEFT, fill=BOTH, expand=TRUE)
     sections_scr_bar.pack(side=RIGHT, fill=Y)
 
-    section_inner_lvl_frame = ttk.Frame(main_frame, width=100)
+    section_inner_lvl_frame = ttk.Frame(main_frame, width=100, style="Mainframe.TFrame")
     section_inner_lvl_frame.grid(row=1, column=1, sticky=NSEW, padx=0)
 
-    notebook_frame = ttk.Frame(main_frame)
+    notebook_frame = ttk.Frame(main_frame, style="Mainframe.TFrame")
     notebook_frame.grid(row=1, column=2)
 
     back_btn = ttk.Button(buttons_frame, text="Назад", command=lambda: go_to_previous_section(path, None))
@@ -579,7 +584,8 @@ def create_tbls_list_table(file_name, table_name):
     conn = sqlite3.connect(file_name)
     cur = conn.cursor()
     q = f'''CREATE TABLE IF NOT EXISTS "{table_name}" (
-                   existing_sections TEXT UNIQUE,
+                   existing_sections TEXT UNIQUE, 
+                   description TEXT,                   
                    created_time TEXT,
                    last_edit_time TEXT)'''
     cur.execute(q.format(table_name))
