@@ -320,6 +320,8 @@ class DescriptionText(Text):
 
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
+
+        self.table = current_table
         try:
             cur.execute(f"""SELECT description from 'tbls_list' 
                              WHERE existing_section ='{current_table}'""")
@@ -335,6 +337,7 @@ class DescriptionText(Text):
         get_text_btn.grid(row=0, column=0, sticky=EW)
         self.grid(row=1, column=0, sticky=N)
         self.descr_from_base = description
+
 
         # get_text_btn.grid(row=3,column=0)
 
@@ -364,7 +367,7 @@ def add_description(text_widget, current_table):
     description = text_widget.get(1.0, "end").strip()
     conn = sqlite3.connect(Data_base_file)
     cur = conn.cursor()
-    q = '''UPDATE "tbls_list" SET description = "{}" 
+    q = '''UPDATE tbls_list SET description = "{}" 
             WHERE existing_section = "{}"'''
     try:
         cur.execute(q.format(description, current_table))
