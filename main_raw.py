@@ -26,22 +26,30 @@ proceed = False
 
 class SearchInTableDescription:
     def __init__(self, frame):
+        print("SearchInTableDescription")
         self.search_entry = Entry(frame, width=40)
-        self.search_table_name = ttk.Button(frame, text="Search name")
+        self.search_table_name = ttk.Button(frame, text="Search name", command=self.get_search_string)
         self.search_description = ttk.Button(frame, text="Search note")
-        self.to_layout_frame = ttk.Frame(frame)
+        self.layout_frame = ttk.Frame(frame)
         self.search_string = None
         self.table_description_dict = dict()
         self.found_tables = list()
 
-        self.search_string.grid()
+        self.search_entry.grid(row=0, column=0, columnspan=2, pady=(5,0))
+        self.search_table_name.grid(row=1, column=0)
+        self.search_description.grid(row=1, column=1)
+        self.layout_frame.grid(row=2, column=0, columnspan=2)
 
     def get_search_string(self):
+        print("get_search_string")
         self.search_string = self.search_entry.get().strip().upper()
+        print(self.search_string, "search string")
         self.search_entry.delete(0, "end")
         self.get_table_name_description_dict()
 
     def get_table_name_description_dict(self):
+        print("get_table_name_description_dict")
+
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
         try:
@@ -56,14 +64,18 @@ class SearchInTableDescription:
         self.find_table_name()
 
     def find_table_name(self):
+        print("find_table_name")
         for key in self.table_description_dict:
-            if self.search_string in key.lower():
+            print(key)
+            if self.search_string in key.upper():
                 self.found_tables.append(key)
         self.layout_found_table()
 
     def layout_found_table(self):
+        print("layout_found_table")
+        print(self.found_tables)
         for i in self.found_tables:
-            FoundTable()
+            FoundTable(self.layout_frame, i, self)
 
 
 class FoundTable(ttk.Button):
@@ -71,6 +83,13 @@ class FoundTable(ttk.Button):
         super().__init__(frame, text=name, width=40,
                          command=open_section(search_interface.table_description_dict[name][1], name))
         self.pack()
+
+
+def layout_search_interface(frame):
+    print("layout_search_interface()")
+    for widget in frame.winfo_children():
+        widget.destroy()
+    SearchInTableDescription(frame)
 
 
 #  replaces the notebook interface with the moving interface
@@ -704,6 +723,11 @@ def open_section(current_table, inner_table):
                                     command=lambda: ask_delete_section(current_table,
                                                                        inner_table))
     delete_section_btn.pack(side=LEFT)
+
+    search_btn = ttk.Button(buttons_frame, text="Поиск",
+                            command=lambda: layout_search_interface(notebook_frame))
+    search_btn.pack(side=RIGHT, pady=(5,0), padx=(10,0))
+
     current_section_var.set(f"../{current_table}/{inner_table}")
     current_section_indicator.pack()
 
