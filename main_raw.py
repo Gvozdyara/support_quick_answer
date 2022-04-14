@@ -27,10 +27,11 @@ proceed = False
 class SearchInTableDescription:
     def __init__(self, frame):
         print("SearchInTableDescription")
+
+        self.layout_frame = ttk.Frame(frame)
         self.search_entry = Entry(frame, width=40)
         self.search_table_name = ttk.Button(frame, text="Search name", command=self.get_search_string)
         self.search_description = ttk.Button(frame, text="Search note")
-        self.layout_frame = ttk.Frame(frame)
         self.search_string = None
         self.table_description_dict = dict()
         self.found_tables = list()
