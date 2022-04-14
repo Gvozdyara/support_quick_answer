@@ -155,7 +155,7 @@ def select_to_move(parent_table, section_to_move):
 
 class App(Tk):
     def __init__(self):
-        global main_frame, Data_base_file, current_section_var, current_section_indicator
+        global main_frame, Data_base_file, current_section_var, current_section_indicator, app
         super().__init__()
         self.title("AI support notebook")
         self.configure(background="#F4F6F7")
@@ -185,22 +185,23 @@ class App(Tk):
 # класс используемый при создании кнопки с именем раздела
 class SectionBtn(ttk.Button):
     def __init__(self, frame, button_section_name, click_cmnd, current_table):
-        super().__init__(frame, textvariable=self.button_section_name, width=40,
-                         command=lambda: click_cmnd(current_table, self.button_section_name))
+        self.section_name = StringVar(value=button_section_name)
+        super().__init__(frame, textvariable=self.section_name,
+                         width=40, command=lambda: click_cmnd(current_table, self.section_name.get()))
 
         self.pack(fill=X, padx=3, side=TOP)
         self.current_table = current_table
-        self.button_section_name = button_section_name
         self.bind("<Enter>", self.on_enter)
         self.bind("<Leave>", self.on_leave)
-        self.bind()
-        self.button_section_name = StringVar()
-        self.button_section_name.set(button_section_name)
+        self.bind("<Button-3>", self.section_btn_right_clck_menu)
+        self.frame = frame
+        self.right_clck_menu = Menu(self.frame, tearoff=0)
+        self.right_clck_menu.add_command(label="Rename", command=self.rename_section_interface)
 
     # функция создает новую таблицу current_table
     def create_inner_table_add_to_the_row(self, current_table):
         # make the table name where to add new sections
-        table_name = self.button_section_name
+        table_name = self.section_name.get()
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
         create_table(cur, conn, table_name)
@@ -223,7 +224,7 @@ class SectionBtn(ttk.Button):
 
         q = """SELECT description from 'tbls_list' 
                WHERE existing_section = '{}' """
-        cur.execute(q.format(self.button_section_name))
+        cur.execute(q.format(self.section_name.get()))
         try:
             description = "".join(cur.fetchall()[0])
         except TypeError:
@@ -233,7 +234,7 @@ class SectionBtn(ttk.Button):
 
         q = """SELECT section_name from '{}'"""
         try:
-            cur.execute(q.format(self.button_section_name))
+            cur.execute(q.format(self.section_name.get()))
         except sqlite3.OperationalError:
             pass
         to_layout_sections_raw = [name[0] for name in cur.fetchall()]
@@ -243,7 +244,7 @@ class SectionBtn(ttk.Button):
 
         cur.execute(f"""SELECT created_time,
                                 last_edit_time from 'tbls_list' 
-                    where existing_section='{self.button_section_name}'
+                    where existing_section='{self.section_name.get()}'
                     """)
         created_edited_time = cur.fetchall()[0]
         conn.close()
@@ -257,23 +258,47 @@ class SectionBtn(ttk.Button):
         return
 
     def rename_section_interface(self):
-        rename_win=Toplevel(root)
-        self.entry_widget = Entry(rename_win)
+        self.rename_win = Toplevel(self.frame)
+        self.entry_widget = Entry(self.rename_win)
         self.entry_widget.pack()
-        self.rename_button = ttk.Button(rename_win, text="Rename", command=self.rename_section)
-        rename_win.mainloop()
+        self.rename_button = ttk.Button(self.rename_win, text="Rename", command=self.rename_section)
+        self.rename_button.pack()
+        self.rename_win.mainloop()
 
     def rename_section(self):
-        new_table_name = self.entry_widget.get()
+        new_table_name = self.entry_widget.get().strip().upper()
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
-        cur.execute(f""""ALTER TABLE '{self.button_section_name}' 
-                           RENAME TO '{new_table_name}'""")
-        cur.execute(f"""UPDATE tbls_list SET existing_section='{new_table_name}'
-                         WHERE existing_section='{self.button_section_name}'""")
-        cur.execute(f"""UPDATE tbls_list SET parent_table='{new_table_name}'
-                         WHERE parent_table='{self.button_section_name}'""")
-        conn.commit()
+        try:
+            cur.execute(f"""UPDATE tbls_list 
+                               SET existing_section='{new_table_name}'
+                             WHERE existing_section='{self.section_name.get()}'""")
+            cur.execute(f"""UPDATE tbls_list SET parent_table='{new_table_name}'
+                             WHERE parent_table='{self.section_name.get()}'""")
+            cur.execute(f""" ALTER TABLE '{self.section_name.get()}' 
+                               RENAME TO '{new_table_name}' """)
+            cur.execute(f"""UPDATE '{self.current_table}' 
+                               SET section_name='{new_table_name}'
+                             WHERE section_name='{self.section_name.get()}'""")
+            conn.commit()
+            self.section_name.set(new_table_name)
+            self.rename_win.destroy()
+        except sqlite3.OperationalError:
+            messagebox.showinfo("Error", f'{sqlite3.OperationalError}')
+            conn.close()
+        except sqlite3.IntegrityError:
+            messagebox.showinfo("Error", f'{sqlite3.IntegrityError}')
+            conn.close()
+        # open_section(self.current_table, self.section_name.get())
+
+
+
+    def section_btn_right_clck_menu(self, event):
+        try:
+            self.right_clck_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.right_clck_menu.grab_release()
+
 
 #  класс используемый для создания Энтри и кнопки добавения к current_table
 class NewSectionEntry(Entry):
@@ -665,4 +690,5 @@ def time_to_sec(str_time):
 
 
 if __name__ == "__main__":
+    global app
     app = App()
