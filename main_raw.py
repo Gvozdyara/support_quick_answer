@@ -30,16 +30,22 @@ class SearchInTableDescription:
 
         self.layout_frame = ttk.Frame(frame)
         self.search_entry = Entry(frame, width=40)
-        self.search_table_name = ttk.Button(frame, text="Search name", command=self.get_search_string)
-        self.search_description = ttk.Button(frame, text="Search note")
+        self.search_table_name = ttk.Button(frame, text="Search name", command=lambda:self.set_search_mode("table"))
+        self.search_description = ttk.Button(frame, text="Search note",
+                                             command=lambda: self.set_search_mode("description"))
         self.search_string = None
         self.table_description_dict = dict()
         self.found_tables = list()
+        self.search_mode = None
 
         self.search_entry.grid(row=0, column=0, columnspan=2, pady=(5,0))
         self.search_table_name.grid(row=1, column=0)
         self.search_description.grid(row=1, column=1)
         self.layout_frame.grid(row=2, column=0, columnspan=2)
+
+    def set_search_mode(self, mode):
+        self.search_mode = mode
+        self.get_search_string()
 
     def get_search_string(self):
         print("get_search_string")
@@ -62,7 +68,13 @@ class SearchInTableDescription:
         except sqlite3.OperationalError:
             print(sqlite3.OperationalError)
         conn.close()
-        self.find_table_name()
+        print(self.search_mode)
+        if self.search_mode == "table":
+            self.find_table_name()
+        else:
+            print("start find from description")
+            self.find_from_description()
+
 
     def find_table_name(self):
         print("find_table_name")
@@ -72,17 +84,50 @@ class SearchInTableDescription:
                 self.found_tables.append(key)
         self.layout_found_table()
 
+    def find_from_description(self):
+        print("find_from_description")
+        for (key, value) in self.table_description_dict.items():
+            print(key, "key", value[0], "value[0]")
+            print(self.search_string, "self.search_string")
+            try:
+                if self.search_string.lower() in value[0].lower():
+                    #  make a short substring from description (i[1])
+                    if len(value[0])>202:
+                        start_index = value[0].find(self.search_string)
+                        if start_index>99:
+                            short_description = value[0][start_index-100:start_index+100]
+                        else:
+                            short_description = value[0][0:start_index+200]
+                    else:
+                        short_description = value[0]
+                    self.table_description_dict[key] = (short_description, self.table_description_dict[key][1])
+                    self.found_tables.append(key)
+            except AttributeError:
+                print(AttributeError)
+
+        if self.search_mode == "table":
+            self.layout_found_table()
+        else:
+            self.layout_description()
+
+
     def layout_found_table(self):
         print("layout_found_table")
         print(self.found_tables)
         for i in self.found_tables:
-            FoundTable(self.layout_frame, i, self)
+            FoundResult(self.layout_frame, i, self)
+
+    def layout_description(self):
+        print("layout_description")
+        for i in self.found_tables:
+            FoundResult(self.layout_frame, self.table_description_dict[i][1], self)
 
 
-class FoundTable(ttk.Button):
+
+class FoundResult(ttk.Button):
     def __init__(self, frame, name, search_interface):
         super().__init__(frame, text=name, width=40,
-                         command=open_section(search_interface.table_description_dict[name][1], name))
+                         command=lambda: open_section(search_interface.table_description_dict[name][1], name))
         self.pack()
 
 
