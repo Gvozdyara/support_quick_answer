@@ -5,7 +5,6 @@ from tkinter import *
 from tkinter import ttk
 import sqlite3
 
-move_path = []
 proceed = False
 
 
@@ -34,18 +33,17 @@ proceed = False
 
 #  replaces the notebook interface with the moving interface
 class MoveSectionInterface():
-    global move_path
 
-    def __init__(self, section_to_move, elder_parent_tables, parent_frame: Frame):
-        for widget in parent_frame.winfo_children():
+    def __init__(self, section_to_move):
+        for widget in main_frame.winfo_children():
             widget.destroy()
 
-        canvas = Canvas(parent_frame)
+        canvas = Canvas(main_frame)
         canvas.pack(side=LEFT, fill=BOTH, expand=1)
 
-        scr_bar = Scrollbar(parent_frame, orient=VERTICAL, command=canvas.yview)
+        scr_bar = Scrollbar(main_frame, orient=VERTICAL, command=canvas.yview)
         scr_bar.pack(side=RIGHT, fill=Y)
-        sections_frame = ttk.Frame(parent_frame)
+        sections_frame = ttk.Frame(main_frame)
         sections_frame.bind('<Configure>',
                             lambda e: canvas.configure(
                                 scrollregion=canvas.bbox("all")))
@@ -53,114 +51,117 @@ class MoveSectionInterface():
 
         canvas.configure(yscrollcommand=scr_bar.set)
 
-
-        layout_btns(sections_frame, "main", section_to_move, elder_parent_tables)
+        layout_btns(sections_frame, "main", section_to_move)
 
 
 # кнопки, которые отображаются в move_section_interface
 class SectionToSelect(ttk.Button):
-    def __init__(self, window, section_name, section_to_move, elder_parent_tables):
+    def __init__(self, window, section_name, section_to_move):
         super().__init__(window, text=section_name, width=40,
                          command=lambda: layout_btns(window,
                                                      section_name,
-                                                     section_to_move,
-                                                     elder_parent_tables))
+                                                     section_to_move))
         self.pack(side=TOP)
+
 
 #  the back button of the move interface
 class BackBtn(ttk.Button):
-    def __init__(self, window, section_to_move, elder_parent_tables):
+    def __init__(self, window, current_table, section_to_move):
         super().__init__(window, text="Назад", command=self.go_back, width=40)
         self.pack()
         self.window = window
         self.section_to_move = section_to_move
-        self.elder_parent_tables = elder_parent_tables
+        self.current_table = current_table
 
     def go_back(self):
-        try:
-            if move_path[-1] != "main":
-                move_path.pop(-1)
-            else:
-                print("No way back")
-        except IndexError:
-            print("IndexError")
-        layout_btn_secnd_phase(self.window, move_path[-1], self.section_to_move,
-                               self.elder_parent_tables)
+        conn = sqlite3.connect()
+        cur = conn.cursor()
+        cur.execute(f"""
+                        SELECT parent_table
+                          FROM 'tbls_list'
+                         WHERE existing_section='{self.current_table}'
+                        """)
+        parent_table = cur.fetchall()[0][0]
+        conn.close()
+        layout_btn_secnd_phase(self.window, parent_table, self.section_to_move)
 
 
 # функция, которая привязывается к section_to_select
-def layout_btns(frame, current_table, section_to_move, elder_parent_tables):
-    move_path.append(current_table)
-    layout_btn_secnd_phase(frame, current_table, section_to_move,
-                           elder_parent_tables)
+def layout_btns(frame, current_table, section_to_move):
+    layout_btn_secnd_phase(frame, current_table, section_to_move)
 
 
-def layout_btn_secnd_phase(frame, current_table, section_to_move,
-                           elder_parent_tables):
+def layout_btn_secnd_phase(frame, current_table, section_to_move):
     for widget in frame.winfo_children():
         widget.destroy()
     frame.update()
     conn = sqlite3.connect("sections.db")
     cur = conn.cursor()
-    q = """SELECT section_name,
-                    inner_table_sqlobject
-                    from '{}' """
-    to_layout_list = cur.execute(q.format(current_table))
+    q = """SELECT section_name
+             from '{}' """
+    cur.execute(q.format(current_table))
+    to_layout_list = cur.fetchall()
+    conn.close()
     for item in to_layout_list:
-        SectionToSelect(frame, item[0], section_to_move, elder_parent_tables)
+        SectionToSelect(frame, item[0], section_to_move)
 
     ttk.Button(frame, text="Выбрать текущий раздел", width=40,
-               command=lambda: select_to_move(current_table, frame, section_to_move,
-                                              elder_parent_tables)).pack()
-    BackBtn(frame, section_to_move, elder_parent_tables)
-    print(move_path)
+               command=lambda: select_to_move(current_table, section_to_move)).pack()
+    BackBtn(frame, current_table, section_to_move)
 
 
 #  funtion that copies the table and deletes it from the previous place
-def select_to_move(parent_table, frame, section_to_move,
-                   elder_parent_tables):
+def select_to_move(parent_table, section_to_move):
     # print(elder_table, " elder table, то, откуда все должно быть удалено")
     # print(parent_table, " parent table, то, куда все доллжно быть перемещено")
     # print(section_to_move, " section to move, то что перемещаем")
-    conn = sqlite3.connect("sections.db")
+
+    #  take the parent table, description of the section to move
+    conn = sqlite3.connect(Data_base_file)
     cur = conn.cursor()
+    cur.execute(f"""
+                SELECT parent_table, description
+                  FROM 'tbls_list'
+                 WHERE existing_section='{section_to_move}'
+                """)
+    to_move_tuple = cur.fetchall()[0]
+    print(to_move_tuple)
 
-    q = """SELECT * from '{}' where section_name=(?)""".format(elder_parent_tables[-1])
-    cur.execute(q, (section_to_move,))
-    to_insert_tuple = cur.fetchall()
+    #  change the parent table of the section to move
+    cur.execute(f"""UPDATE 'tbls_list'
+                       SET parent_table='{parent_table}'
+                     WHERE existing_section='{section_to_move}'
+                    """)
+    # conn.commit()
 
-    q = "INSERT INTO '{}' values(?,?)".format(parent_table)
-    cur.execute(q, (to_insert_tuple[0][0], to_insert_tuple[0][1]))
-    conn.commit()
+    #  change the layout of the previous parent_table
+    cur.execute(f"""DELETE from '{to_move_tuple[0]}'
+                     WHERE section_name='{section_to_move}'
+                    """)
+    # conn.commit()
 
-    q = "DELETE from '{}' where section_name=(?)".format(elder_parent_tables[-1])
-    cur.execute(q, (section_to_move,))
+    #  change the layout of the new parent table
+    cur.execute(f"""INSERT INTO '{parent_table}'(section_name)
+                            VALUES ('{section_to_move}')
+                        """)
     conn.commit()
 
     layout_frames()
-    open_section(None, "main")
-    return True
+    open_section(parent_table, section_to_move)
 
 
 class App(Tk):
     def __init__(self):
-        global main_frame, Data_base_file, path
+        global main_frame, Data_base_file, current_section_var, current_section_indicator, app
         super().__init__()
         self.title("AI support notebook")
         self.configure(background="#F4F6F7")
 
-
-        path = []
-        # sb = ttk.Style()
-        # sb.configure("TButton", foreground="BLACK", background="RED", textwrap=15)
-
-        # sl = ttk.Style()
-        # sl.configure("TLabel", background="RED")
+        current_section_var = StringVar()
 
         sf = ttk.Style()
         sf.configure("Mainframe.TFrame", background="#FEF5E7")
         sf.configure("Label.TLabel", background="#FEF5E7")
-
 
         Data_base_file = "sections.db"
         create_data_base(Data_base_file, "main")
@@ -171,7 +172,7 @@ class App(Tk):
 
         layout_frames()
         open_section(None, "main")
-        SectionInnerLvlLabel(section_inner_lvl_frame, ["Пусто"], [""], ("",""))
+        SectionInnerLvlLabel(section_inner_lvl_frame, ["Пусто"], [""], ("", ""))
 
         self.mainloop()
 
@@ -179,31 +180,26 @@ class App(Tk):
 # класс используемый при создании кнопки с именем раздела
 class SectionBtn(ttk.Button):
     def __init__(self, frame, button_section_name, click_cmnd, current_table):
-        super().__init__(frame, text=button_section_name, width=40,
-                         command=lambda: click_cmnd(current_table, button_section_name))
+        self.section_name = StringVar(value=button_section_name)
+        super().__init__(frame, textvariable=self.section_name,
+                         width=40, command=lambda: click_cmnd(current_table, self.section_name.get()))
 
         self.pack(fill=X, padx=3, side=TOP)
         self.current_table = current_table
-        self.button_section_name = button_section_name
         self.bind("<Enter>", self.on_enter)
         self.bind("<Leave>", self.on_leave)
+        self.bind("<Button-3>", self.section_btn_right_clck_menu)
+        self.frame = frame
+        self.right_clck_menu = Menu(self.frame, tearoff=0)
+        self.right_clck_menu.add_command(label="Rename", command=self.rename_section_interface)
 
-    # функция создает таблицу, которая устанавливается в столбец section_name таблицы current_table
+    # функция создает новую таблицу current_table
     def create_inner_table_add_to_the_row(self, current_table):
         # make the table name where to add new sections
-        table_name = self.button_section_name
+        table_name = self.section_name.get()
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
         create_table(cur, conn, table_name)
-        #     надо добавить свеже созданую таблицу в таблицу выше уровнем в строку с section_id_var
-        q = """UPDATE '{}' 
-                SET inner_table_sqlobject = '{}'
-                WHERE section_name = '{}' """
-        conn = sqlite3.connect(Data_base_file)
-        cur = conn.cursor()
-        cur.execute(q.format(current_table, table_name, table_name))
-        conn.commit()
-        conn.close()
 
     # выводим содержимое таблицы, куда наводится курсор к разделу (2 столбец)
     def on_enter(self, e):
@@ -221,8 +217,8 @@ class SectionBtn(ttk.Button):
         cur = conn.cursor()
 
         q = """SELECT description from 'tbls_list' 
-               WHERE existing_sections = '{}' """
-        cur.execute(q.format(self.button_section_name))
+               WHERE existing_section = '{}' """
+        cur.execute(q.format(self.section_name.get()))
         try:
             description = "".join(cur.fetchall()[0])
         except TypeError:
@@ -232,7 +228,7 @@ class SectionBtn(ttk.Button):
 
         q = """SELECT section_name from '{}'"""
         try:
-            cur.execute(q.format(self.button_section_name))
+            cur.execute(q.format(self.section_name.get()))
         except sqlite3.OperationalError:
             pass
         to_layout_sections_raw = [name[0] for name in cur.fetchall()]
@@ -242,7 +238,7 @@ class SectionBtn(ttk.Button):
 
         cur.execute(f"""SELECT created_time,
                                 last_edit_time from 'tbls_list' 
-                    where existing_sections='{self.button_section_name}'
+                    where existing_section='{self.section_name.get()}'
                     """)
         created_edited_time = cur.fetchall()[0]
         conn.close()
@@ -254,6 +250,46 @@ class SectionBtn(ttk.Button):
 
     def on_leave(self, e):
         return
+
+    def rename_section_interface(self):
+        self.rename_win = Toplevel(self.frame)
+        self.entry_widget = Entry(self.rename_win)
+        self.entry_widget.pack()
+        self.rename_button = ttk.Button(self.rename_win, text="Rename", command=self.rename_section)
+        self.rename_button.pack()
+        self.rename_win.mainloop()
+
+    def rename_section(self):
+        new_table_name = self.entry_widget.get().strip().upper()
+        conn = sqlite3.connect(Data_base_file)
+        cur = conn.cursor()
+        try:
+            cur.execute(f"""UPDATE tbls_list 
+                               SET existing_section='{new_table_name}'
+                             WHERE existing_section='{self.section_name.get()}'""")
+            cur.execute(f"""UPDATE tbls_list SET parent_table='{new_table_name}'
+                             WHERE parent_table='{self.section_name.get()}'""")
+            cur.execute(f""" ALTER TABLE '{self.section_name.get()}' 
+                               RENAME TO '{new_table_name}' """)
+            cur.execute(f"""UPDATE '{self.current_table}' 
+                               SET section_name='{new_table_name}'
+                             WHERE section_name='{self.section_name.get()}'""")
+            conn.commit()
+            self.section_name.set(new_table_name)
+            self.rename_win.destroy()
+        except sqlite3.OperationalError:
+            messagebox.showinfo("Error", f'{sqlite3.OperationalError}')
+            conn.close()
+        except sqlite3.IntegrityError:
+            messagebox.showinfo("Error", f'{sqlite3.IntegrityError}')
+            conn.close()
+        # open_section(self.current_table, self.section_name.get())
+
+    def section_btn_right_clck_menu(self, event):
+        try:
+            self.right_clck_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.right_clck_menu.grab_release()
 
 
 #  класс используемый для создания Энтри и кнопки добавения к current_table
@@ -268,17 +304,17 @@ class NewSectionEntry(Entry):
 
 # класс добавления описания к текущему разделу при помощи Text widget
 class DescriptionText(Text):
-    def __init__(self, frame, parrent_table, current_table):
+    def __init__(self, frame, current_table):
         super().__init__(frame, height=25, wrap="word", width=40, font="Font 9")
         get_text_btn = ttk.Button(frame, text="Добавить описание к текущему разделу",
-                                  command=lambda: add_description(self, parrent_table,
+                                  command=lambda: add_description(self,
                                                                   current_table))
 
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
         try:
             cur.execute(f"""SELECT description from 'tbls_list' 
-                             WHERE existing_sections ='{current_table}'""")
+                             WHERE existing_section ='{current_table}'""")
             description = cur.fetchall()
             conn.close()
             description = description[0][0]
@@ -291,6 +327,10 @@ class DescriptionText(Text):
         get_text_btn.grid(row=0, column=0, sticky=EW)
         self.grid(row=1, column=0, sticky=N)
         self.descr_from_base = description
+        self.table = current_table
+
+    def update_descr_from_base(self, new_description):
+            self.descr_from_base = new_description
 
         # get_text_btn.grid(row=3,column=0)
 
@@ -316,44 +356,46 @@ class SectionInnerLvlLabel(ttk.Label):
 
 
 # добавление описания в таблицу
-def add_description(text_widget, parent_table, current_table):
+def add_description(text_widget, current_table):
     description = text_widget.get(1.0, "end").strip()
     conn = sqlite3.connect(Data_base_file)
     cur = conn.cursor()
     q = '''UPDATE "tbls_list" SET description = "{}" 
-            WHERE existing_sections = "{}"'''
+            WHERE existing_section = "{}"'''
     try:
         cur.execute(q.format(description, current_table))
         conn.commit()
         cur.execute(f"""UPDATE 'tbls_list' set last_edit_time = '{get_time()}' 
-                                        where existing_sections='{current_table}'""")
+                                        where existing_section='{current_table}'""")
         conn.commit()
     except sqlite3.OperationalError:
         messagebox.showinfo("Error", "Unable to add note to the main screen")
     conn.close()
 
+    text_widget.update_descr_from_base(description)
+
 
 # функция выкладывания кнопок текущего раздела
 def layout_section_btns(current_table):
     # dump_help_base(current_table)
-    global section_frame, path
+    global section_frame
 
     conn = sqlite3.connect(Data_base_file)
     cur = conn.cursor()
-    q = """SELECT  
-        section_name
-        from '{}' """
+    q = """SELECT section_name
+             FROM '{}' """
     cur.execute(q.format(current_table))
-    to_layout_list = cur.fetchall()
 
+    to_layout_list = cur.fetchall()
+    conn.close()
     #  experimental feature to sort by last edit
     # sections_list = []
     # for i in to_layout_list:
     #     sections_list.append(i[0])
-    # cur.execute('''SELECT existing_sections,
+    # cur.execute('''SELECT existing_section,
     #                         last_edit_time
-    #             from "tbls_list" where existing_sections="{}"
-    #             "{}"'''.format(sections_list[0], "AND where existing_sections=".join(sections_list[1:])))
+    #             from "tbls_list" where existing_section="{}"
+    #             "{}"'''.format(sections_list[0], "AND where existing_section=".join(sections_list[1:])))
     # section_edit_time = cur.fetchall()
     # conn.close()
     # print(section_edit_time, "section edit_time list of tuples")
@@ -362,25 +404,11 @@ def layout_section_btns(current_table):
     #     modified_list.append(time_to_sec(tup[1]))
     # sorted(modified_list, key=lambda seconds: seconds[1])
 
-
-
-
     for item in to_layout_list:
         SectionBtn(section_frame,
                    item[0],  # section_name
                    open_section,
                    current_table)
-
-
-# вызов класса move section interface
-def call_move_section(table_name, elder_parent_tables, text_widget):
-    try:
-        move_path.clear()
-        MoveSectionInterface(table_name, elder_parent_tables, main_frame)
-
-
-    except sqlite3.OperationalError:
-        print(sqlite3.OperationalError)
 
 
 # функция подключения к файлу и создания базовой таблицы
@@ -394,43 +422,63 @@ def create_data_base(file_name, table_name):
 # создание таблицы после подключения к базе данных
 def create_table(cur, conn, table_name):
     q = '''CREATE TABLE IF NOT EXISTS "{}" (
-                section_name TEXT UNIQUE,
-                inner_table_sqlobject TEXT UNIQUE
+                section_name TEXT UNIQUE
                 )'''
     cur.execute(q.format(table_name))
     conn.commit()
 
 
+def print_crnt_tbl(current_table):
+    print("the content of the table that is currently openned")
+    conn = sqlite3.connect("sections.db")
+    cur = conn.cursor()
+    q = f"SELECT * from '{current_table}'"
+    cur.execute(q)
+    cur.execute(q)
+    to_print = cur.fetchall()
+    conn.close()
+    for row in to_print:
+        i = 0
+        row_to_print = str()
+        while i != len(row):
+            row_to_print += str(row[i]) + "\t" + "|"
+            i += 1
+        print(row_to_print)
+
+
+def create_tbls_list_table(file_name, table_name):
+    conn = sqlite3.connect(file_name)
+    cur = conn.cursor()
+    q = f'''CREATE TABLE IF NOT EXISTS "{table_name}" (
+                   existing_section TEXT UNIQUE, 
+                   description TEXT,
+                   parent_table TEXT,                   
+                   created_time TEXT,
+                   last_edit_time TEXT)'''
+    cur.execute(q.format(table_name))
+    conn.commit()
+    try:
+        cur.execute(f"""INSERT INTO tbls_list(existing_section, parent_table)
+                             VALUES ('main', 'None1')""")
+    except sqlite3.IntegrityError:
+        print("Inserting parent table into main failure")
+        pass
+    conn.commit()
+
+
 # функция добавления нового раздела к базе данных, а также вывода ее в интрефейс в виде кнопки
 def add_section(entry, current_table):
-    global root, section_frame, path
+    global root, section_frame
     section_title = entry.get().strip().upper()
     if section_title != "":
         entry.delete(0, 'end')
-        try:
-            conn = sqlite3.connect(Data_base_file)
-            cur = conn.cursor()
-            cur.execute("SELECT existing_sections from 'tbls_list'")
-            existing_sections_raw_list = cur.fetchall()
-            conn.close()
-            existing_sections = []
-            for i in existing_sections_raw_list:
-                existing_sections.append(i[0])
-        except sqlite3.OperationalError:
-            existing_sections = []
-            messagebox.showinfo("Ошибка", "Ошибка проверки наличия раздела в существующей таблице")
-        except IndexError:
-            existing_sections = []
-            print(IndexError)
-
-
-        if not section_title in existing_sections:
-            add_section_to_db(section_title, current_table)
-            add_table_to_tbls_list(Data_base_file, section_title)
-            new_section_btn = SectionBtn(section_frame, section_title, open_section, current_table)
-            new_section_btn.create_inner_table_add_to_the_row(current_table)
-        else:
-            messagebox.showinfo("Ошибка", "Такая запись уже существует")
+        # if not section_title in existing_sections:
+    if add_section_to_db(section_title, current_table):
+        add_table_to_tbls_list(Data_base_file, section_title, current_table)
+        new_section_btn = SectionBtn(section_frame, section_title, open_section, current_table)
+        new_section_btn.create_inner_table_add_to_the_row(current_table)
+        # else:
+        #     messagebox.showinfo("Ошибка", "Такая запись уже существует")
     else:
         pass
 
@@ -443,22 +491,40 @@ def add_section_to_db(section_name, current_table):
     try:
         cur.execute(q.format(current_table), (section_name,))
         conn.commit()
+        return True
 
     except sqlite3.IntegrityError:
         messagebox.showinfo("Ошибка", "Такой раздел уже существует")
         conn.close()
+        return False
 
 
+def add_table_to_tbls_list(file_name, name, parent_table):
+    conn = sqlite3.connect(file_name)
+    cur = conn.cursor()
+    q = f'''INSERT into "tbls_list" (existing_section,
+                                    parent_table, 
+                                    created_time,
+                                    last_edit_time) 
+                            values ("{name}",
+                                    "{parent_table}",
+                                    "{get_time()}",
+                                    "{get_time()}")
+                                                                    '''
+    cur.execute(q)
+    conn.commit()
 
 
 def layout_frames():
-    global buttons_frame, section_frame, section_inner_lvl_frame, notebook_frame, back_btn
+    global buttons_frame, section_frame, section_inner_lvl_frame, notebook_frame, back_btn, current_section_indicator
 
     for widget in main_frame.winfo_children():
         widget.destroy()
 
     buttons_frame = ttk.Frame(main_frame, style="Mainframe.TFrame")
     buttons_frame.grid(row=0, column=0, columnspan=3, sticky=W)
+    current_section_indicator = Label(buttons_frame, textvariable=current_section_var, background="#FEF5E7",
+                                      font="BOLD")
 
     sections_raw_frame = ttk.Frame(main_frame, style="Mainframe.TFrame")
     sections_raw_frame.grid(row=1, column=0, sticky=NS)
@@ -477,133 +543,86 @@ def layout_frames():
     sections_canvas.pack(side=LEFT, fill=BOTH, expand=TRUE)
     sections_scr_bar.pack(side=RIGHT, fill=Y)
 
-    section_inner_lvl_frame = ttk.Frame(main_frame, width=100, style="Mainframe.TFrame")
+    section_inner_lvl_frame = ttk.Frame(main_frame, width=300, style="Mainframe.TFrame")
     section_inner_lvl_frame.grid(row=1, column=1, sticky=NSEW, padx=0)
 
     notebook_frame = ttk.Frame(main_frame, style="Mainframe.TFrame")
     notebook_frame.grid(row=1, column=2)
 
-    back_btn = ttk.Button(buttons_frame, text="Назад", command=lambda: go_to_previous_section(path, None))
+    back_btn = ttk.Button(buttons_frame, text="Назад", command=None)
 
 
 # Вернуться к предыдущему разделу, спросить о сохранении, в некоторых случаях text_widget=None
-def go_to_previous_section(path, text_widget):
-    last_path = path[-1]
-    current_table = last_path[0]
-    inner_table = last_path[1]
+def go_to_previous_section(current_table, text_widget):
     try:
         current_note = text_widget.get(1.0, "end").strip()
+        print(current_note, " current note")
+        print(text_widget.descr_from_base, "text_widget.descr_from_base")
         if current_note != text_widget.descr_from_base:
             if messagebox.askokcancel("Сохранение", "Сохранить изменения в записи?"):
-                add_description(text_widget, current_table, inner_table)
+                add_description(text_widget, text_widget.table)
 
-        try:
-            if path[-1][-1] != "main":
-                path.pop(-1)
-
-        except IndexError:
-            pop = Tk()
-            info_message = ttk.Label(pop, text="No way back")
-            OK = Button(pop, text="OK", command=lambda: pop.destroy())
-            info_message.pack()
-            OK.pack()
     except AttributeError:
         print(AttributeError)
-        try:
-            if path[-1][-1] != "main":
-                path.pop(-1)
 
-        except IndexError:
-            pop = Tk()
-            info_message = ttk.Label(pop, text="No way back")
-            OK = Button(pop, text="OK", command=lambda: pop.destroy())
-            info_message.pack()
-            OK.pack()
+    conn = sqlite3.connect(Data_base_file)
+    cur = conn.cursor()
+    cur.execute(f"""SELECT parent_table
+                      FROM tbls_list
+                     WHERE existing_section='{text_widget.table}'""")
+    sections_tuple = cur.fetchall()
+    conn.close()
 
-    last_path = path[-1]
-    current_table = last_path[0]
-    inner_table = last_path[1]
-    layout_frames()
-    open_section(current_table, inner_table)
+    if current_table != None:
+        layout_frames()
+        open_section(sections_tuple[0][0], current_table)
 
 
 # функция для удаления текущего раздела
-def ask_delete_section(parrent_table, table_name):
+def ask_delete_section(parent_table, table_name):
     try:
         if messagebox.askokcancel(f'Delete "{table_name}?"',
                                   f'Are you sure you want to delete "{table_name}"'):
-            delete_section(parrent_table, table_name)
+            delete_section(table_name)
 
     except IndexError:
         pass
 
 
 # Удаление раздела из базы данных и возврат к предыдущему разделу
-def delete_section(parrent_table, table_name):
+def delete_section(table_name):
     try:
-        conn = sqlite3.connect(Data_base_file)
-        cur = conn.cursor()
-        q = "DELETE FROM '{}' WHERE section_name='{}'"
-        cur.execute(q.format(parrent_table, table_name))
-        conn.commit()
-        q = "DROP TABLE '{}'"
-        cur.execute(q.format(table_name))
-        conn.commit()
 
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
-        q = "DELETE FROM 'tbls_list' WHERE existing_sections='{}'"
-        cur.execute(q.format(table_name))
-        conn.commit()
-        print(table_name, " the name to delete")
 
-        go_to_previous_section(path, None)
-        print("go back")
+        #  find parent table
+        cur.execute(f"""SELECT parent_table FROM tbls_list
+                         WHERE existing_section='{table_name}'""")
+        parent_table = cur.fetchall()[0][0]
+
+        #  delete the row from parent table
+        cur.execute(f"DELETE FROM '{parent_table}' WHERE section_name='{table_name}'")
+
+        #   delete the table
+        cur.execute(f"DROP TABLE '{table_name}'")
+
+        #  delete the row from tbls_list table
+        cur.execute(f"DELETE FROM tbls_list WHERE existing_section='{table_name}'")
+        conn.commit()
+        go_to_previous_section(parent_table, None)
     except sqlite3.OperationalError:
-        messagebox.showinfo("Ошибка", f"{sqlite3.OperationalError}")
+        messagebox.showinfo("Ошибка", "Нельзя удалить основной раздел")
 
 
-def print_crnt_tbl(current_table):
-    print("the content of the table that is currently openned")
-    conn = sqlite3.connect("sections.db")
-    cur = conn.cursor()
-    q = f"SELECT * from '{current_table}'"
-    cur.execute(q)
-    to_print = cur.fetchall()
-    conn.close()
-    for row in to_print:
-        i = 0
-        row_to_print = str()
-        while i != len(row):
-            row_to_print += str(row[i]) + "\t" + "|"
-            i += 1
-        print(row_to_print)
+# вызов класса move section interface
+def call_move_section(table_name):
+    try:
+        MoveSectionInterface(table_name)
 
 
-def create_tbls_list_table(file_name, table_name):
-    conn = sqlite3.connect(file_name)
-    cur = conn.cursor()
-    q = f'''CREATE TABLE IF NOT EXISTS "{table_name}" (
-                   existing_sections TEXT UNIQUE, 
-                   description TEXT,                   
-                   created_time TEXT,
-                   last_edit_time TEXT)'''
-    cur.execute(q.format(table_name))
-    conn.commit()
-
-
-def add_table_to_tbls_list(file_name, name):
-    conn = sqlite3.connect(file_name)
-    cur = conn.cursor()
-    q = f'''INSERT into "tbls_list" (existing_sections, 
-                                    created_time,
-                                    last_edit_time) values("{name}", 
-                                                        "{get_time()}",
-                                                        "{get_time()}")
-                                                                    '''
-    print(name)
-    cur.execute(q)
-    conn.commit()
+    except sqlite3.OperationalError:
+        print(sqlite3.OperationalError)
 
 
 # Открытие раздела базы данных в интерфейсе (current table - то, где сейчас
@@ -611,61 +630,40 @@ def add_table_to_tbls_list(file_name, name):
 
 
 def open_section(current_table, inner_table):
-    global path
-
-    # удаляем все кнопки с секциями из фрейма-кнопок для заполнения его новыми кнопками
+    #  удаляем все кнопки с секциями из фрейма-кнопок для заполнения его новыми кнопками
 
     for widget in section_frame.winfo_children():
         widget.destroy()
     section_frame.update()
+    #  отправляем команду на создание нового фрейма, нового Энтри  для добавления разделов внутрь открываемого
+    NewSectionEntry(section_frame, inner_table)
     # удаляем все кнопки с секциями из фрейма-энтри для заполнения его новыми кнопками
     for widget in notebook_frame.winfo_children():
         widget.destroy()
     notebook_frame.update()
+    # выкладываем имеющиеся разделы
+
+    layout_section_btns(inner_table)
     for widget in buttons_frame.winfo_children():
         widget.pack_forget()
     buttons_frame.update()
 
-    # отправляем команду на создание нового фрейма, нового Энтри  для добавления разделов внутрь открываемого
+    description_text_widget = DescriptionText(notebook_frame, inner_table)
 
-    NewSectionEntry(section_frame, inner_table)
-
-    # conn = sqlite3.connect(Data_base_file)
-    # cur = conn.cursor()
-
-    # выкладываем имеющиеся разделы
-    try:
-        if path[-1][0] != current_table:
-            path.append((current_table, inner_table))
-    except IndexError:
-        path.append((current_table, inner_table))
-    layout_section_btns(inner_table)
-
-    description_text_widget = DescriptionText(notebook_frame, current_table,
-                                              inner_table)
-
-    # for widget in delete_btn_frame.winfo_children():
-    #     widget.destroy()
-    #
-    # delete_btn_frame.update()
-
-    back_btn.configure(command=lambda: go_to_previous_section(path, description_text_widget))
+    back_btn.configure(command=lambda: go_to_previous_section(current_table, description_text_widget))
     back_btn.update()
     back_btn.pack(side=LEFT)
 
     move_btn = ttk.Button(buttons_frame, text="Переместить текущий раздел",
-                          command=lambda: call_move_section(inner_table,
-                                                            path[-2],
-                                                            description_text_widget))
+                          command=lambda: call_move_section(inner_table))
     move_btn.pack(side=LEFT)
 
     delete_section_btn = ttk.Button(buttons_frame, text="Удалить текущий раздел",
-                                    command=lambda: ask_delete_section(path[-1][-2],
-                                                                       path[-1][-1]))
+                                    command=lambda: ask_delete_section(current_table,
+                                                                       inner_table))
     delete_section_btn.pack(side=LEFT)
-    if len(path) > 1:
-        # delete_section_btn.pack()
-        pass
+    current_section_var.set(f"../{current_table}/{inner_table}")
+    current_section_indicator.pack()
 
 
 #  this function returns string YYYY-MM-DD HH:MM:SS
@@ -677,15 +675,15 @@ def time_to_sec(str_time):
     date = str_time.split(" ")[0]
     date_split = date.split("-")
     print(date)
-    days = int(date_split[0])*365*0.25 + int(date_split[1])*30.45 + int(date_split[2])
+    days = int(date_split[0]) * 365 * 0.25 + int(date_split[1]) * 30.45 + int(date_split[2])
 
     time = str_time.split(" ")[1]
     time_split = time.split(":")
-    seconds = int(time_split[0])*3600+int(time_split[1])*60+int(time_split[2])
-    total_seconds = days*86400 + seconds
+    seconds = int(time_split[0]) * 3600 + int(time_split[1]) * 60 + int(time_split[2])
+    total_seconds = days * 86400 + seconds
     return total_seconds
 
 
-
 if __name__ == "__main__":
+    global app
     app = App()
