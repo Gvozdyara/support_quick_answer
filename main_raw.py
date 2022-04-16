@@ -5,35 +5,141 @@ from tkinter import *
 from tkinter import ttk
 import sqlite3
 
-
 proceed = False
 
 
-#  search interface
-#  class of the search interface
-# class SearchNote():
-#     def __init__(self, parent_frame, string_to_search):
-#         ttk.Button(parent_frame, text="Back", command=self.go_back)
-#         for widget in parent_frame.winfo_children():
-#             widget.destroy()
-#         self.string_to_search = string_to_search
+ #  search interface
+ #  class of the search interface, appears instead of the description text
 #
+#  When the search button is clicked the search frame will appear
+#  in the place of the notebook_frame.
+#  An entry widget will appear where user inputs a string
+#  search in table name, in description buttons will be placed lower,
+#  when clicked the strip.upper string will be to search
+#  after that from each table from tbls-list (description or table name) will be selected,
+#  changed to lower case and  checked if the search string is there or no
+#  the list of the descriptions (tables) as buttons will be shown in the scrollable frame
+#  description should be shortened to +-100 symbols - when clicked:
+# select parents table from tbls-list and open_section(parent_table, current_table)
 #
-#     def go_back(self):
-#         layout_frames()
-#         open_section(None, "main")
-#
-#     def search_string(self):
-#         conn = sqlite3.connect(Data_base_file)
-#         cur = conn.cursor()
-#         cur.execute("SELECT existing_sections from 'tbls_list'")
-#         tables_list_of_tuples = cur.fetchall()
-#         for item in tables_list_of_tuples:
-#             cur.execute(f"SELECT")
+
+
+class SearchInTableDescription:
+    def __init__(self, frame):
+        print("SearchInTableDescription")
+
+        self.layout_frame = ttk.Frame(frame)
+        self.search_entry = Entry(frame, width=40)
+        self.search_table_name = ttk.Button(frame, text="Search name", command=lambda:self.set_search_mode("table"))
+        self.search_description = ttk.Button(frame, text="Search note",
+                                             command=lambda: self.set_search_mode("description"))
+        self.search_string = None
+        self.table_description_dict = dict()
+        self.found_tables = list()
+        self.search_mode = None
+
+        self.search_entry.grid(row=0, column=0, columnspan=2, pady=(5,0))
+        self.search_table_name.grid(row=1, column=0)
+        self.search_description.grid(row=1, column=1)
+        self.layout_frame.grid(row=2, column=0, columnspan=2)
+
+    def set_search_mode(self, mode):
+        self.search_mode = mode
+        self.get_search_string()
+
+    def get_search_string(self):
+        print("get_search_string")
+        self.search_string = self.search_entry.get().strip().upper()
+        print(self.search_string, "search string")
+        self.search_entry.delete(0, "end")
+        self.get_table_name_description_dict()
+
+    def get_table_name_description_dict(self):
+        print("get_table_name_description_dict")
+
+        conn = sqlite3.connect(Data_base_file)
+        cur = conn.cursor()
+        try:
+            cur.execute(f"""SELECT existing_section, description, parent_table
+                              FROM tbls_list""")
+            table_description_list = cur.fetchall()
+            for i in table_description_list:
+                self.table_description_dict[i[0]] = (i[1], i[2])
+        except sqlite3.OperationalError:
+            print(sqlite3.OperationalError)
+        conn.close()
+        print(self.search_mode)
+        if self.search_mode == "table":
+            self.find_table_name()
+        else:
+            print("start find from description")
+            self.find_from_description()
+
+
+    def find_table_name(self):
+        print("find_table_name")
+        for key in self.table_description_dict:
+            print(key)
+            if self.search_string in key.upper():
+                self.found_tables.append(key)
+        self.layout_found_table()
+
+    def find_from_description(self):
+        print("find_from_description")
+        for (key, value) in self.table_description_dict.items():
+            print(key, "key", value[0], "value[0]")
+            print(self.search_string, "self.search_string")
+            try:
+                if self.search_string.lower() in value[0].lower():
+                    #  make a short substring from description (i[1])
+                    if len(value[0])>202:
+                        start_index = value[0].find(self.search_string)
+                        if start_index>99:
+                            short_description = value[0][start_index-100:start_index+100]
+                        else:
+                            short_description = value[0][0:start_index+200]
+                    else:
+                        short_description = value[0]
+                    self.table_description_dict[key] = (short_description, self.table_description_dict[key][1])
+                    self.found_tables.append(key)
+            except AttributeError:
+                print(AttributeError)
+
+        if self.search_mode == "table":
+            self.layout_found_table()
+        else:
+            self.layout_description()
+
+
+    def layout_found_table(self):
+        print("layout_found_table")
+        print(self.found_tables)
+        for i in self.found_tables:
+            FoundResult(self.layout_frame, i, self)
+
+    def layout_description(self):
+        print("layout_description")
+        for i in self.found_tables:
+            FoundResult(self.layout_frame, self.table_description_dict[i][0], i, self)
+
+
+
+class FoundResult(ttk.Button):
+    def __init__(self, frame, string, table, search_interface):
+        super().__init__(frame, text=string, width=40,
+                         command=lambda: open_section(search_interface.table_description_dict[table][1], table))
+        self.pack()
+
+
+def layout_search_interface(frame):
+    print("layout_search_interface()")
+    for widget in frame.winfo_children():
+        widget.destroy()
+    SearchInTableDescription(frame)
 
 
 #  replaces the notebook interface with the moving interface
-class MoveSectionInterface():
+class MoveSectionInterface:
 
     def __init__(self, section_to_move):
         for widget in main_frame.winfo_children():
@@ -52,7 +158,6 @@ class MoveSectionInterface():
 
         canvas.configure(yscrollcommand=scr_bar.set)
 
-
         layout_btns(sections_frame, "main", section_to_move)
 
 
@@ -64,6 +169,7 @@ class SectionToSelect(ttk.Button):
                                                      section_name,
                                                      section_to_move))
         self.pack(side=TOP)
+
 
 #  the back button of the move interface
 class BackBtn(ttk.Button):
@@ -110,7 +216,6 @@ def layout_btn_secnd_phase(frame, current_table, section_to_move):
                command=lambda: select_to_move(current_table, section_to_move)).pack()
     BackBtn(frame, current_table, section_to_move)
 
-
 #  funtion that copies the table and deletes it from the previous place
 def select_to_move(parent_table, section_to_move):
     # print(elder_table, " elder table, то, откуда все должно быть удалено")
@@ -127,8 +232,6 @@ def select_to_move(parent_table, section_to_move):
                 """)
     to_move_tuple = cur.fetchall()[0]
     print(to_move_tuple)
-
-
 
     #  change the parent table of the section to move
     cur.execute(f"""UPDATE 'tbls_list'
@@ -155,18 +258,16 @@ def select_to_move(parent_table, section_to_move):
 
 class App(Tk):
     def __init__(self):
-        global main_frame, Data_base_file, current_section_var, current_section_indicator
+        global main_frame, Data_base_file, current_section_var, current_section_indicator, app
         super().__init__()
         self.title("AI support notebook")
         self.configure(background="#F4F6F7")
 
         current_section_var = StringVar()
 
-
         sf = ttk.Style()
         sf.configure("Mainframe.TFrame", background="#FEF5E7")
         sf.configure("Label.TLabel", background="#FEF5E7")
-
 
         Data_base_file = "sections.db"
         create_data_base(Data_base_file, "main")
@@ -177,7 +278,7 @@ class App(Tk):
 
         layout_frames()
         open_section(None, "main")
-        SectionInnerLvlLabel(section_inner_lvl_frame, ["Пусто"], [""], ("",""))
+        SectionInnerLvlLabel(section_inner_lvl_frame, ["Пусто"], [""], ("", ""))
 
         self.mainloop()
 
@@ -185,26 +286,26 @@ class App(Tk):
 # класс используемый при создании кнопки с именем раздела
 class SectionBtn(ttk.Button):
     def __init__(self, frame, button_section_name, click_cmnd, current_table):
-        super().__init__(frame, textvariable=self.button_section_name, width=40,
-                         command=lambda: click_cmnd(current_table, self.button_section_name))
+        self.section_name = StringVar(value=button_section_name)
+        super().__init__(frame, textvariable=self.section_name,
+                         width=40, command=lambda: click_cmnd(current_table, self.section_name.get()))
 
         self.pack(fill=X, padx=3, side=TOP)
         self.current_table = current_table
-        self.button_section_name = button_section_name
         self.bind("<Enter>", self.on_enter)
         self.bind("<Leave>", self.on_leave)
-        self.bind()
-        self.button_section_name = StringVar()
-        self.button_section_name.set(button_section_name)
+        self.bind("<Button-3>", self.section_btn_right_clck_menu)
+        self.frame = frame
+        self.right_clck_menu = Menu(self.frame, tearoff=0)
+        self.right_clck_menu.add_command(label="Rename", command=self.rename_section_interface)
 
     # функция создает новую таблицу current_table
     def create_inner_table_add_to_the_row(self, current_table):
         # make the table name where to add new sections
-        table_name = self.button_section_name
+        table_name = self.section_name.get()
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
         create_table(cur, conn, table_name)
-        
 
     # выводим содержимое таблицы, куда наводится курсор к разделу (2 столбец)
     def on_enter(self, e):
@@ -223,7 +324,7 @@ class SectionBtn(ttk.Button):
 
         q = """SELECT description from 'tbls_list' 
                WHERE existing_section = '{}' """
-        cur.execute(q.format(self.button_section_name))
+        cur.execute(q.format(self.section_name.get()))
         try:
             description = "".join(cur.fetchall()[0])
         except TypeError:
@@ -233,7 +334,7 @@ class SectionBtn(ttk.Button):
 
         q = """SELECT section_name from '{}'"""
         try:
-            cur.execute(q.format(self.button_section_name))
+            cur.execute(q.format(self.section_name.get()))
         except sqlite3.OperationalError:
             pass
         to_layout_sections_raw = [name[0] for name in cur.fetchall()]
@@ -243,7 +344,7 @@ class SectionBtn(ttk.Button):
 
         cur.execute(f"""SELECT created_time,
                                 last_edit_time from 'tbls_list' 
-                    where existing_section='{self.button_section_name}'
+                    where existing_section='{self.section_name.get()}'
                     """)
         created_edited_time = cur.fetchall()[0]
         conn.close()
@@ -257,23 +358,45 @@ class SectionBtn(ttk.Button):
         return
 
     def rename_section_interface(self):
-        rename_win=Toplevel(root)
-        self.entry_widget = Entry(rename_win)
+        self.rename_win = Toplevel(self.frame)
+        self.entry_widget = Entry(self.rename_win)
         self.entry_widget.pack()
-        self.rename_button = ttk.Button(rename_win, text="Rename", command=self.rename_section)
-        rename_win.mainloop()
+        self.rename_button = ttk.Button(self.rename_win, text="Rename", command=self.rename_section)
+        self.rename_button.pack()
+        self.rename_win.mainloop()
 
     def rename_section(self):
-        new_table_name = self.entry_widget.get()
+        new_table_name = self.entry_widget.get().strip().upper()
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
-        cur.execute(f""""ALTER TABLE '{self.button_section_name}' 
-                           RENAME TO '{new_table_name}'""")
-        cur.execute(f"""UPDATE tbls_list SET existing_section='{new_table_name}'
-                         WHERE existing_section='{self.button_section_name}'""")
-        cur.execute(f"""UPDATE tbls_list SET parent_table='{new_table_name}'
-                         WHERE parent_table='{self.button_section_name}'""")
-        conn.commit()
+        try:
+            cur.execute(f"""UPDATE tbls_list 
+                               SET existing_section='{new_table_name}'
+                             WHERE existing_section='{self.section_name.get()}'""")
+            cur.execute(f"""UPDATE tbls_list SET parent_table='{new_table_name}'
+                             WHERE parent_table='{self.section_name.get()}'""")
+            cur.execute(f""" ALTER TABLE '{self.section_name.get()}' 
+                               RENAME TO '{new_table_name}' """)
+            cur.execute(f"""UPDATE '{self.current_table}' 
+                               SET section_name='{new_table_name}'
+                             WHERE section_name='{self.section_name.get()}'""")
+            conn.commit()
+            self.section_name.set(new_table_name)
+            self.rename_win.destroy()
+        except sqlite3.OperationalError:
+            messagebox.showinfo("Error", f'{sqlite3.OperationalError}')
+            conn.close()
+        except sqlite3.IntegrityError:
+            messagebox.showinfo("Error", f'{sqlite3.IntegrityError}')
+            conn.close()
+        # open_section(self.current_table, self.section_name.get())
+
+    def section_btn_right_clck_menu(self, event):
+        try:
+            self.right_clck_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.right_clck_menu.grab_release()
+
 
 #  класс используемый для создания Энтри и кнопки добавения к current_table
 class NewSectionEntry(Entry):
@@ -310,6 +433,10 @@ class DescriptionText(Text):
         get_text_btn.grid(row=0, column=0, sticky=EW)
         self.grid(row=1, column=0, sticky=N)
         self.descr_from_base = description
+        self.table = current_table
+
+    def update_descr_from_base(self, new_description):
+            self.descr_from_base = new_description
 
         # get_text_btn.grid(row=3,column=0)
 
@@ -350,6 +477,8 @@ def add_description(text_widget, current_table):
     except sqlite3.OperationalError:
         messagebox.showinfo("Error", "Unable to add note to the main screen")
     conn.close()
+
+    text_widget.update_descr_from_base(description)
 
 
 # функция выкладывания кнопок текущего раздела
@@ -404,6 +533,7 @@ def create_table(cur, conn, table_name):
     cur.execute(q.format(table_name))
     conn.commit()
 
+
 def print_crnt_tbl(current_table):
     print("the content of the table that is currently openned")
     conn = sqlite3.connect("sections.db")
@@ -440,7 +570,6 @@ def create_tbls_list_table(file_name, table_name):
         print("Inserting parent table into main failure")
         pass
     conn.commit()
-
 
 
 # функция добавления нового раздела к базе данных, а также вывода ее в интрефейс в виде кнопки
@@ -492,7 +621,6 @@ def add_table_to_tbls_list(file_name, name, parent_table):
     conn.commit()
 
 
-
 def layout_frames():
     global buttons_frame, section_frame, section_inner_lvl_frame, notebook_frame, back_btn, current_section_indicator
 
@@ -503,8 +631,6 @@ def layout_frames():
     buttons_frame.grid(row=0, column=0, columnspan=3, sticky=W)
     current_section_indicator = Label(buttons_frame, textvariable=current_section_var, background="#FEF5E7",
                                       font="BOLD")
-
-
 
     sections_raw_frame = ttk.Frame(main_frame, style="Mainframe.TFrame")
     sections_raw_frame.grid(row=1, column=0, sticky=NS)
@@ -536,9 +662,11 @@ def layout_frames():
 def go_to_previous_section(current_table, text_widget):
     try:
         current_note = text_widget.get(1.0, "end").strip()
+        print(current_note, " current note")
+        print(text_widget.descr_from_base, "text_widget.descr_from_base")
         if current_note != text_widget.descr_from_base:
             if messagebox.askokcancel("Сохранение", "Сохранить изменения в записи?"):
-                add_description(text_widget, current_table)
+                add_description(text_widget, text_widget.table)
 
     except AttributeError:
         print(AttributeError)
@@ -547,7 +675,7 @@ def go_to_previous_section(current_table, text_widget):
     cur = conn.cursor()
     cur.execute(f"""SELECT parent_table
                       FROM tbls_list
-                     WHERE existing_section='{current_table}'""")
+                     WHERE existing_section='{text_widget.table}'""")
     sections_tuple = cur.fetchall()
     conn.close()
 
@@ -608,7 +736,6 @@ def call_move_section(table_name):
 
 
 def open_section(current_table, inner_table):
-
     #  удаляем все кнопки с секциями из фрейма-кнопок для заполнения его новыми кнопками
 
     for widget in section_frame.winfo_children():
@@ -641,6 +768,11 @@ def open_section(current_table, inner_table):
                                     command=lambda: ask_delete_section(current_table,
                                                                        inner_table))
     delete_section_btn.pack(side=LEFT)
+
+    search_btn = ttk.Button(buttons_frame, text="Поиск",
+                            command=lambda: layout_search_interface(notebook_frame))
+    search_btn.pack(side=RIGHT, pady=(5,0), padx=(10,0))
+
     current_section_var.set(f"../{current_table}/{inner_table}")
     current_section_indicator.pack()
 
@@ -654,15 +786,15 @@ def time_to_sec(str_time):
     date = str_time.split(" ")[0]
     date_split = date.split("-")
     print(date)
-    days = int(date_split[0])*365*0.25 + int(date_split[1])*30.45 + int(date_split[2])
+    days = int(date_split[0]) * 365 * 0.25 + int(date_split[1]) * 30.45 + int(date_split[2])
 
     time = str_time.split(" ")[1]
     time_split = time.split(":")
-    seconds = int(time_split[0])*3600+int(time_split[1])*60+int(time_split[2])
-    total_seconds = days*86400 + seconds
+    seconds = int(time_split[0]) * 3600 + int(time_split[1]) * 60 + int(time_split[2])
+    total_seconds = days * 86400 + seconds
     return total_seconds
 
 
-
 if __name__ == "__main__":
+    global app
     app = App()
