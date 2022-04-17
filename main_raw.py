@@ -26,7 +26,6 @@ proceed = False
 
 class SearchInTableDescription:
     def __init__(self, frame):
-        print("SearchInTableDescription")
 
         self.layout_frame = ttk.Frame(frame)
         self.search_entry = Entry(frame, width=40)
@@ -48,14 +47,11 @@ class SearchInTableDescription:
         self.get_search_string()
 
     def get_search_string(self):
-        print("get_search_string")
         self.search_string = self.search_entry.get().strip().upper()
-        print(self.search_string, "search string")
         self.search_entry.delete(0, "end")
         self.get_table_name_description_dict()
 
     def get_table_name_description_dict(self):
-        print("get_table_name_description_dict")
 
         conn = sqlite3.connect(Data_base_file)
         cur = conn.cursor()
@@ -68,16 +64,13 @@ class SearchInTableDescription:
         except sqlite3.OperationalError:
             print(sqlite3.OperationalError)
         conn.close()
-        print(self.search_mode)
         if self.search_mode == "table":
             self.find_table_name()
         else:
-            print("start find from description")
             self.find_from_description()
 
 
     def find_table_name(self):
-        print("find_table_name")
         for key in self.table_description_dict:
             print(key)
             if self.search_string in key.upper():
@@ -85,10 +78,7 @@ class SearchInTableDescription:
         self.layout_found_table()
 
     def find_from_description(self):
-        print("find_from_description")
         for (key, value) in self.table_description_dict.items():
-            print(key, "key", value[0], "value[0]")
-            print(self.search_string, "self.search_string")
             try:
                 if self.search_string.lower() in value[0].lower():
                     #  make a short substring from description (i[1])
@@ -112,8 +102,6 @@ class SearchInTableDescription:
 
 
     def layout_found_table(self):
-        print("layout_found_table")
-        print(self.found_tables)
         for i in self.found_tables:
             FoundResult(self.layout_frame, i, self)
 
@@ -121,6 +109,7 @@ class SearchInTableDescription:
         print("layout_description")
         for i in self.found_tables:
             FoundResult(self.layout_frame, self.table_description_dict[i][0], i, self)
+            print(i, "inner table")
 
 
 
@@ -662,10 +651,9 @@ def layout_frames():
 def go_to_previous_section(current_table, text_widget):
     try:
         current_note = text_widget.get(1.0, "end").strip()
-        print(current_note, " current note")
-        print(text_widget.descr_from_base, "text_widget.descr_from_base")
         if current_note != text_widget.descr_from_base:
-            if messagebox.askokcancel("Сохранение", "Сохранить изменения в записи?"):
+            if messagebox.askokcancel("Сохранение",
+                                      f"Сохранить изменения в записи {text_widget.table}?"):
                 add_description(text_widget, text_widget.table)
 
     except AttributeError:
@@ -675,13 +663,16 @@ def go_to_previous_section(current_table, text_widget):
     cur = conn.cursor()
     cur.execute(f"""SELECT parent_table
                       FROM tbls_list
-                     WHERE existing_section='{text_widget.table}'""")
+                     WHERE existing_section='{current_table}'""")
     sections_tuple = cur.fetchall()
     conn.close()
 
-    if current_table != None:
+    try:
         layout_frames()
         open_section(sections_tuple[0][0], current_table)
+    except IndexError:
+        layout_frames()
+        open_section(None, "main")
 
 
 # функция для удаления текущего раздела
